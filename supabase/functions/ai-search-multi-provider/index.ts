@@ -151,35 +151,31 @@ Deno.serve(async (req) => {
                 searchResults = await executeGooglePSESearch(
                     search_query, 
                     search_parameters, 
-                    locationContext, 
-                    googleApiKey, 
-                    googlePseCx
-                );
-                processingMethod = 'google_pse_raw';
+        // Parse request body using standard req.json() method
+        let requestData = {};
+        
+        try {
+            requestData = await req.json();
+            console.log('✅ JSON parseado correctamente:', Object.keys(requestData));
+            console.log('📥 Request data:', JSON.stringify(requestData, null, 2));
+        } catch (parseError) {
+            // Handle SyntaxError for empty JSON bodies
+            if (parseError instanceof SyntaxError) {
+                console.log('⚠️ Request body vacío o inválido, usando objeto vacío por defecto.');
+                requestData = {};
+            } else {
+                console.error('❌ Error parseando request JSON:', parseError);
+                return new Response(JSON.stringify({
+                    error: {
+                        code: 'INVALID_JSON',
+                        message: 'Request JSON inválido: ' + parseError.message,
+                        timestamp: new Date().toISOString()
+                    }
+                }), {
+                    status: 400,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
             }
-            
-            console.log('📊 Resultados de Google PSE obtenidos:', searchResults.length);
-            
-            return new Response(JSON.stringify({
-                data: {
-                    search_id: searchId,
-                    results_count: searchResults.length,
-                    results: searchResults,
-                    raw_google_pse_results: searchResults,
-                    processing_info: {
-                        query_processed: search_query,
-                        search_engine: 'Google Programmable Search Engine',
-                        pse_cx: googlePseCx,
-                        detected_location: locationContext,
-                        timestamp: new Date().toISOString(),
-                        mode: 'development_raw_results',
-                        processing_method: processingMethod
-                    },
-                    message: 'Resultados crudos de Google PSE para verificación'
-                }
-            }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
         }
 
         // MODO PRODUCCIÓN: Procesar con IA
