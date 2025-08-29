@@ -8,7 +8,7 @@ import { Alert } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { aiService, ParseResult, ValidationResult, PreviewData } from '@/services/ai'
+import { aiService, ParseResult, ValidationResult, PreviewData } from '@/services/ai.service'
 import { useAuth } from '@/hooks/useAuth'
 import { Bot, FileText, CheckCircle, Eye, AlertCircle, Sparkles } from 'lucide-react'
 

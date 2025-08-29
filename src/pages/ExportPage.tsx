@@ -28,7 +28,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { usePlans } from '@/hooks/usePlans'
 import { useConvocatorias } from '@/hooks/useConvocatorias'
-import { aiService, ExportRequest } from '@/services/ai'
+import { aiService, ExportRequest } from '@/services/ai.service'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
