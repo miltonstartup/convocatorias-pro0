@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "title": "Configuración de Convocatorias Pro",
+  "type": "object",
+  "properties": {
+    "supabase": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "default": "https://zkqdieifjrodriepjldn.supabase.co"
+        },
+        "anon_key": {
+          "type": "string",
+          "description": "Clave pública de Supabase"
+        },
+        "service_role_key": {
+          "type": "string",
+          "description": "Clave de servicio para Edge Functions"
+        }
+      },
+      "required": ["url", "anon_key", "service_role_key"]
+    },
+    "openrouter": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "default": "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"
+        },
+        "models": {
+          "type": "object",
+          "properties": {
+            "deepseek": {
+              "type": "string",
+              "default": "deepseek/deepseek-chat-v3-0324:free"
+            },
+            "gemini": {
+              "type": "string",
+              "default": "google/gemini-2.0-flash-exp:free"
+            },
+            "llama": {
+              "type": "string",
+              "default": "meta-llama/llama-3.3-70b-instruct:free"
+            }
+          }
+        }
+      },
+      "required": ["api_key"]
+    },
+    "mercadopago": {
+      "type": "object",
+      "properties": {
+        "access_token": {
+          "type": "string",
+          "description": "Access token de MercadoPago Chile"
+        },
+        "webhook_url": {
+          "type": "string",
+          "default": "https://zkqdieifjrodriepjldn.supabase.co/functions/v1/mp-webhook"
+        },
+        "plans": {
+          "type": "object",
+          "properties": {
+            "pro_monthly": {
+              "type": "object",
+              "properties": {
+                "price_clp": { "type": "number", "default": 8990 },
+                "checkout_url": { "type": "string" }
+              }
+            },
+            "pro_annual": {
+              "type": "object",
+              "properties": {
+                "price_clp": { "type": "number", "default": 84990 },
+                "checkout_url": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "required": ["access_token"]
+    },
+    "frontend": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "default": "https://5e9q2suaukyp.space.minimax.io"
+        },
+        "features": {
+          "type": "object",
+          "properties": {
+            "ai_agents": { "type": "boolean", "default": true },
+            "mercadopago": { "type": "boolean", "default": true },
+            "plan_limits": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    }
+  },
+  "required": ["supabase", "openrouter"]
+}
