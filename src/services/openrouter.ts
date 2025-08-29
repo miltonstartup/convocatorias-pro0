@@ -31,7 +31,7 @@ class OpenRouterService {
     this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
     
     if (!this.apiKey) {
-      throw new Error('VITE_OPENROUTER_API_KEY is required but not found in environment variables')
+      console.warn('VITE_OPENROUTER_API_KEY not found in environment variables')
     }
   }
 
