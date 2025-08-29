@@ -49,9 +49,8 @@ Deno.serve(async (req) => {
             }
         }
         
-        // Fallback final para compatibilidad
         if (!googleApiKey) {
-            googleApiKey = 'AIzaSyBTmZoy4GKloRkBBN5fqnMHV13sy3WDUIs';
+            throw new Error('GOOGLE_API_KEY is required but not configured');
         }
 
         // Mapear nombres de modelos a sus identificadores API actualizados para Gemini 2.5

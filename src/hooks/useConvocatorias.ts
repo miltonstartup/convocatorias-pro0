@@ -139,40 +139,6 @@ export function useConvocatorias() {
     setConvocatorias(prev => prev.filter(conv => conv.id !== id))
   }
 
-  const getStats = (): DashboardStats => {
-    const now = new Date()
-    const stats: DashboardStats = {
-      total: convocatorias.length,
-      abiertas: 0,
-      cerradas: 0,
-      en_evaluacion: 0,
-      proximas_a_cerrar: 0
-    }
-
-    convocatorias.forEach(conv => {
-      switch (conv.estado) {
-        case 'abierto':
-          stats.abiertas++
-          // Verificar si está próxima a cerrar (7 días)
-          const fechaCierre = new Date(conv.fecha_cierre)
-          const diffTime = fechaCierre.getTime() - now.getTime()
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-          if (diffDays <= 7 && diffDays >= 0) {
-            stats.proximas_a_cerrar++
-          }
-          break
-        case 'cerrado':
-          stats.cerradas++
-          break
-        case 'en_evaluacion':
-          stats.en_evaluacion++
-          break
-      }
-    })
-
-    return stats
-  }
-
   const getConvocatoriaById = (id: number): Convocatoria | undefined => {
     return convocatorias.find(conv => conv.id === id)
   }
@@ -192,7 +158,6 @@ export function useConvocatorias() {
     createConvocatoria,
     updateConvocatoria,
     deleteConvocatoria,
-    getStats,
     getConvocatoriaById,
     refresh: () => fetchConvocatorias()
   }
