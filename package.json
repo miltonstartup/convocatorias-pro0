@@ -18,7 +18,9 @@
     "test:components": "vitest run src/tests/components",
     "test:all": "npm run test:run && npm run test:e2e",
     "supabase:types": "supabase gen types typescript --project-id wilvxlbiktetduwftqfn > src/types/supabase.ts",
-    "deploy:functions": "supabase functions deploy --project-ref wilvxlbiktetduwftqfn"
+    "deploy:functions": "supabase functions deploy --project-ref wilvxlbiktetduwftqfn",
+    "install": "npm install",
+    "start": "npm run dev"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

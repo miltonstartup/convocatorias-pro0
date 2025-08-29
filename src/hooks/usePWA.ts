@@ -169,10 +169,12 @@ export const usePWA = (): PWAState & PWAActions => {
   // Obtener clave pública VAPID del servidor
   const getVAPIDPublicKey = useCallback(async (): Promise<string> => {
     try {
-      const response = await fetch('/functions/v1/push-notifications', {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         },
         body: JSON.stringify({ action: 'get_vapid_key' })
       });
@@ -182,11 +184,10 @@ export const usePWA = (): PWAState & PWAActions => {
       }
       
       const data = await response.json();
-      return data.vapid_public_key || 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
+      return data.vapid_public_key;
     } catch (error) {
       console.error('Error obteniendo clave VAPID:', error);
-      // Fallback a la clave hardcoded
-      return 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
+      throw new Error('No se pudo obtener la clave VAPID del servidor');
     }
   }, []);
   const installPWA = useCallback(async (): Promise<boolean> => {
@@ -263,7 +264,8 @@ export const usePWA = (): PWAState & PWAActions => {
       setState(prev => ({ ...prev, pushSubscription: subscription }))
       
       // Enviar suscripción al servidor (usando Supabase Edge Function)
-      const response = await fetch('https://wilvxlbiktetduwftqfn.supabase.co/functions/v1/push-notifications', {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -272,7 +274,7 @@ export const usePWA = (): PWAState & PWAActions => {
         body: JSON.stringify({
           action: 'subscribe',
           subscription,
-          user_id: 'temp-user-id' // Esto debe obtenerse del contexto de auth
+          user_id: user?.id || 'anonymous'
         })
       })
 

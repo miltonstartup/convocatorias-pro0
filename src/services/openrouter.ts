@@ -28,7 +28,11 @@ class OpenRouterService {
   }
 
   constructor() {
-    this.apiKey = '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'
+    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
+    
+    if (!this.apiKey) {
+      throw new Error('VITE_OPENROUTER_API_KEY is required but not found in environment variables')
+    }
   }
 
   async makeRequest(request: OpenRouterRequest): Promise<string> {
