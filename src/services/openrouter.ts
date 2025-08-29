@@ -28,7 +28,7 @@ class OpenRouterService {
   }
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
+    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || ''
     
     if (!this.apiKey) {
       console.warn('VITE_OPENROUTER_API_KEY not found in environment variables')

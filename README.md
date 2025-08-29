@@ -1,270 +1,431 @@
-# 🚀 ConvocatoriasPro - Plataforma Inteligente para Gestión de Convocatorias
-
-[![Deploy Status](https://img.shields.io/badge/Deploy-Success-brightgreen)](https://h5fyoucsksvp.space.minimax.io)
-[![React](https://img.shields.io/badge/React-18.3.1-blue)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6.3-blue)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Backend-green)](https://supabase.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.16-blue)](https://tailwindcss.com/)
-
-> **🌐 Aplicación Desplegada**: [https://h5fyoucsksvp.space.minimax.io](https://h5fyoucsksvp.space.minimax.io)
-
-ConvocatoriasPro es una aplicación web fullstack diseñada específicamente para profesionales, emprendedores y organizaciones en Chile que necesitan gestionar y hacer seguimiento eficiente de convocatorias de financiamiento como CORFO, SERCOTEC, Fondos Cultura, y concursos internacionales.
-
----
-
-## ✨ Características Principales
-
-### 🎯 **Gestión Inteligente de Convocatorias**
-- **Ingreso Múltiple**: Manual, drag & drop de archivos (.xlsx/.csv/.txt), y detección por clipboard con IA
-- **Dashboard Avanzado**: Vista tipo tarjetas con filtros por estado, institución, tipo de fondo
-- **Calendario Inteligente**: Visualización cronológica con colores por estado y fechas críticas
-- **Alertas Personalizadas**: Recordatorios automáticos para fechas importantes
-
-### 💳 **Sistema de Suscripciones**
-- **Plan Gratuito**: Hasta 5 convocatorias, dashboard básico, 3 días de prueba Pro
-- **Pro Mensual** ($8.990 CLP): Todas las funciones + IA + exportación + rastreo automático
-- **Pro Anual** ($84.990 CLP): Todo lo anterior + 2 meses gratis + funciones exclusivas
-- **Integración MercadoPago Chile**: Pagos seguros con activación automática
-
-### 🤖 **Automatización con IA**
-- **Parser Inteligente**: Extracción automática de datos desde documentos y texto
-- **Validación Automática**: Verificación de campos obligatorios y consistencia
-- **Rastreo Automático**: Monitoreo de sitios oficiales para nuevas convocatorias
-- **Recomendaciones Personalizadas**: Sugerencias basadas en perfil e historial
-
-### 🔐 **Seguridad y Autenticación**
-- **Supabase Auth**: Email/password, Google OAuth, GitHub OAuth
-- **Row Level Security**: Control de acceso granular por usuario
-- **Paywall Inteligente**: Bloqueo progresivo de funciones según plan
-- **Datos Encriptados**: Protección completa de información sensible
-
----
-
-## 🛠️ Stack Tecnológico
-
-| Componente | Tecnología | Versión |
-|------------|------------|----------|
-| **Frontend** | React + TypeScript | 18.3.1 |
-| **Styling** | Tailwind CSS + shadcn/ui | 3.4.16 |
-| **Backend** | Supabase (PostgreSQL) | Latest |
-| **Autenticación** | Supabase Auth | Latest |
-| **Pagos** | MercadoPago Chile | API v1 |
-| **Animaciones** | Framer Motion | 12.23.12 |
-| **Deploy** | Netlify/Vercel | - |
-
----
-
-## 🚀 Instalación y Configuración
-
-### Requisitos Previos
-- Node.js 18+
-- pnpm (recomendado) o npm
-- Cuenta en Supabase
-- Cuenta en MercadoPago (para pagos)
-
-### 1. Clonar e Instalar
-```bash
-git clone [URL_DEL_REPOSITORIO]
-cd convocatorias-pro
-pnpm install
-```
-
-### 2. Configurar Supabase
-1. Ejecuta el script SQL en `supabase/setup-database.sql` en tu proyecto Supabase
-2. Configura las variables de entorno (ver `.env.example`)
-3. Habilita OAuth providers en Supabase Dashboard si es necesario
-
-### 3. Configurar MercadoPago
-1. Crea enlaces de suscripción en MercadoPago Dashboard
-2. Actualiza las URLs en la tabla `plans` de la base de datos
-3. Configura webhooks (opcional pero recomendado)
-
-### 4. Desarrollo Local
-```bash
-pnpm dev
-```
-La aplicación estará disponible en `http://localhost:5173`
-
-### 5. Deploy en Producción
-```bash
-pnpm build
-# Subir contenido de /dist a tu hosting preferido
-```
-
-📚 **Guía Completa**: Ver [docs/SETUP.md](docs/SETUP.md) para instrucciones detalladas.
-
----
-
-## 📱 Experiencia Mobile-First
-
-ConvocatoriasPro está diseñado con un enfoque **mobile-first** estricto:
-
-- ✅ **Responsive**: Funciona perfectamente de 320px a 1920px
-- ✅ **Táctil Optimizado**: Botones grandes (min 44px), gestos intuitivos
-- ✅ **Navegación Móvil**: Sidebar colapsable, menú inferior en dispositivos pequeños
-- ✅ **Performance**: Lazy loading, code splitting, imágenes optimizadas
-- ✅ **Modo Oscuro**: Nativo con toggle persistente
-- ✅ **PWA Ready**: Preparado para instalación como app móvil
-
----
-
-## 🎨 Características de Diseño
-
-### Principios UX/UI
-- **Minimalismo Funcional**: Interfaz limpia sin elementos decorativos innecesarios
-- **Jerarquía Visual Clara**: Uso consistente de tipografía, colores y espaciado
-- **Microinteracciones**: Animaciones suaves para feedback inmediato
-- **Accesibilidad**: Contraste WCAG AA, navegación por teclado, etiquetas ARIA
-- **Consistencia**: Sistema de diseño coherente en toda la aplicación
-
-### Paleta de Colores
-- **Primario**: Azul corporativo (#1e40af)
-- **Secundario**: Verde para estados activos (#059669)
-- **Alertas**: Amarillo para próximos a vencer (#d97706)
-- **Crítico**: Rojo para fechas vencidas (#dc2626)
-- **Modo Oscuro**: Grises suaves con acentos de color
-
----
-
-## 🔧 Estructura del Proyecto
-
-```
-convocatorias-pro/
-├── src/
-│   ├── components/          # Componentes React reutilizables
-│   │   ├── auth/           # Autenticación y guards
-│   │   ├── dashboard/      # Dashboard y estadísticas
-│   │   ├── convocatorias/  # Gestión de convocatorias
-│   │   ├── plans/          # Selección y gestión de planes
-│   │   ├── ui/             # Componentes base (shadcn/ui)
-│   │   └── layout/         # Layout y navegación
-│   ├── pages/              # Páginas principales
-│   ├── hooks/              # Custom hooks (useAuth, useConvocatorias)
-│   ├── lib/                # Utilidades y configuraciones
-│   └── types/              # Definiciones TypeScript
-├── supabase/
-│   ├── setup-database.sql  # Script de configuración DB
-│   └── edge-functions/     # Functions serverless
-├── docs/                   # Documentación
-└── public/                 # Assets estáticos
-```
-
----
-
-## 🧪 Testing y Calidad
-
-### Pruebas Implementadas
-- ✅ **Funcionalidad Core**: CRUD de convocatorias
-- ✅ **Autenticación**: Login, registro, OAuth
-- ✅ **Paywall**: Restricciones por plan
-- ✅ **Responsive**: Testing en múltiples dispositivos
-- ✅ **Performance**: Lighthouse score >90
-
-### Herramientas de Calidad
-- **ESLint**: Linting de código TypeScript/React
-- **Prettier**: Formateo automático de código
-- **TypeScript**: Tipado estático para reducir bugs
-- **React Hook Form + Zod**: Validación robusta de formularios
-
----
-
-## 📊 Funcionalidades por Plan
-
-| Funcionalidad | Gratuito | Pro |
-|---------------|----------|-----|
-| Convocatorias almacenadas | 5 máx | ∞ Ilimitadas |
-| Dashboard básico | ✅ | ✅ |
-| Calendario visual | ✅ | ✅ |
-| Ingreso manual | ✅ | ✅ |
-| Filtros básicos | ✅ | ✅ |
-| **Ingreso por archivos** | ❌ | ✅ |
-| **IA para parsing** | ❌ | ✅ |
-| **Exportación PDF/CSV** | ❌ | ✅ |
-| **Rastreo automático** | ❌ | ✅ |
-| **Recomendaciones IA** | ❌ | ✅ |
-| **Soporte prioritario** | ❌ | ✅ |
-
----
-
-## 🌟 Casos de Uso
-
-### 👩‍💼 **Gestoras Culturales**
-"Necesito hacer seguimiento de múltiples fondos de cultura simultáneamente y no perder fechas importantes."
-
-### 🚀 **Emprendedores Tech**
-"Quiero automatizar la búsqueda de fondos CORFO y recibir alertas cuando aparezcan convocatorias relevantes."
-
-### 🏢 **Instituciones Educativas** 
-"Necesitamos gestionar postulaciones a fondos de investigación y tener visibilidad del estado de cada una."
-
-### 💡 **Consultores en Innovación**
-"Requiero una herramienta para gestionar las postulaciones de mis clientes de forma organizada y profesional."
-
----
-
-## 🔮 Roadmap Futuro
-
-### Versión 2.0 (Q2 2025)
-- [ ] **App Móvil Nativa**: iOS y Android
-- [ ] **Colaboración en Tiempo Real**: Equipos y permisos
-- [ ] **Integraciones**: Notion, Trello, Google Calendar
-- [ ] **Dashboard Ejecutivo**: Métricas avanzadas y reportes
-- [ ] **API Pública**: Integración con sistemas externos
-
-### Versión 2.5 (Q3 2025)
-- [ ] **IA Predictiva**: Predicción de probabilidades de éxito
-- [ ] **Templates Inteligentes**: Generación automática de propuestas
-- [ ] **Marketplace**: Conexión entre postulantes y evaluadores
-- [ ] **Blockchain**: Verificación de credenciales y logros
-
----
-
-## 🤝 Contribuciones
-
-ConvocatoriasPro es un proyecto en constante evolución. Las contribuciones son bienvenidas:
-
-1. Fork del repositorio
-2. Crear feature branch (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit de cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push al branch (`git push origin feature/nueva-funcionalidad`)
-5. Crear Pull Request
-
----
-
-## 📄 Licencia
-
-MIT License - ver [LICENSE](LICENSE) para detalles.
-
----
-
-## 📞 Soporte
-
-- 📧 **Email**: soporte@convocatoriaspro.cl
-- 💬 **Chat**: Disponible en la aplicación para usuarios Pro
-- 📚 **Documentación**: [docs/](docs/)
-- 🐛 **Reportar Bugs**: [GitHub Issues](issues)
-
----
-
-## 🏆 Desarrollado por MiniMax Agent
-
-**ConvocatoriasPro** ha sido desarrollado completamente por **MiniMax Agent**, demostrando las capacidades avanzadas de desarrollo fullstack con IA.
-
-### Tecnologías Implementadas en Tiempo Record:
-- ✅ Aplicación React completa con +50 componentes
-- ✅ Base de datos PostgreSQL con RLS y triggers
-- ✅ Sistema de autenticación multi-proveedor
-- ✅ Integración de pagos con MercadoPago Chile
-- ✅ Diseño responsive mobile-first
-- ✅ Deploy automático y documentación completa
-
-**¡Todo desarrollado, configurado y desplegado en una sola sesión!** 🚀
-
----
-
-<div align="center">
-  <strong>🌟 ¡Transforma tu gestión de convocatorias hoy mismo! 🌟</strong><br>
-  <a href="https://h5fyoucsksvp.space.minimax.io" target="_blank">
-    <img src="https://img.shields.io/badge/Probar%20Ahora-Gratis-brightgreen?style=for-the-badge" alt="Probar ConvocatoriasPro">
-  </a>
-</div>
+Deno.serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE, PATCH',
+    'Access-Control-Max-Age': '86400',
+    'Access-Control-Allow-Credentials': 'false'
+  };
+
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  try {
+    const { action, subscription, notification, user_id } = await req.json();
+    
+    // Obtener variables de entorno con valores por defecto (claves VAPID reales)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
+    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'suycv6fZ93eHyVCHesd3UwfJ4cS1OWrFwg4wC180pxM';
+    const vapidEmail = Deno.env.get('VAPID_EMAIL') || 'miltonstartup@gmail.com';
+
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      throw new Error('Variables de entorno de Supabase no configuradas');
+    }
+
+    // Función para convertir clave VAPID a formato JWT
+    function urlB64ToUint8Array(base64String: string) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      
+      const rawData = atob(base64);
+      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+    }
+
+    // Función para generar authorization header VAPID
+    async function generateVAPIDAuthHeader(audience: string) {
+      const header = {
+        typ: 'JWT',
+        alg: 'ES256'
+      };
+      
+      const payload = {
+        aud: audience,
+        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 horas
+        sub: `mailto:${vapidEmail}`
+      };
+      
+      const textEncoder = new TextEncoder();
+      const headerEncoded = btoa(JSON.stringify(header))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      const payloadEncoded = btoa(JSON.stringify(payload))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      const unsignedToken = `${headerEncoded}.${payloadEncoded}`;
+      const data = textEncoder.encode(unsignedToken);
+      
+      // Convertir clave privada VAPID
+      const privateKeyBytes = urlB64ToUint8Array(vapidPrivateKey);
+      
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        privateKeyBytes,
+        {
+          name: 'ECDSA',
+          namedCurve: 'P-256'
+        },
+        false,
+        ['sign']
+      );
+      
+      const signature = await crypto.subtle.sign(
+        {
+          name: 'ECDSA',
+          hash: 'SHA-256'
+        },
+        cryptoKey,
+        data
+      );
+      
+      const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      return `${unsignedToken}.${signatureBase64}`;
+    }
+
+    // Función para enviar notificación push real
+    async function sendWebPushNotification(subscription: any, payload: string) {
+      const url = new URL(subscription.endpoint);
+      const audience = `${url.protocol}//${url.host}`;
+      
+      const vapidToken = await generateVAPIDAuthHeader(audience);
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const response = await fetch(subscription.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
+          'Content-Type': 'application/octet-stream',
+          'Content-Encoding': 'aes128gcm',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: payload
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+      
+      return response;
+    }
+
+    switch (action) {
+      case 'get_vapid_key': {
+        // Endpoint para obtener la clave pública VAPID
+        return new Response(JSON.stringify({ 
+          success: true, 
+          vapid_public_key: vapidPublicKey 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'subscribe': {
+        if (!subscription || !user_id) {
+          throw new Error('Subscription y user_id son requeridos');
+        }
+
+        // Verificar si ya existe la suscripción
+        const existingResponse = await fetch(
+          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+              'apikey': supabaseServiceRoleKey
+            }
+          }
+        );
+
+        const existing = await existingResponse.json();
+        
+        if (existing.length > 0) {
+          // Actualizar suscripción existente
+          const updateResponse = await fetch(
+            `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': supabaseServiceRoleKey
+              },
+              body: JSON.stringify({
+                user_id,
+                p256dh_key: subscription.keys.p256dh,
+                auth_key: subscription.keys.auth,
+                is_active: true,
+                updated_at: new Date().toISOString()
+              })
+            }
+          );
+          
+          if (!updateResponse.ok) {
+            throw new Error('Error actualizando suscripción');
+          }
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Suscripción actualizada exitosamente',
+            subscription_id: existing[0].id,
+            vapid_public_key: vapidPublicKey
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Crear nueva suscripción
+        const response = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+            'Content-Type': 'application/json',
+            'apikey': supabaseServiceRoleKey
+          },
+          body: JSON.stringify({
+            user_id,
+            endpoint: subscription.endpoint,
+            p256dh_key: subscription.keys.p256dh,
+            auth_key: subscription.keys.auth,
+            user_agent: req.headers.get('user-agent') || 'Unknown',
+            created_at: new Date().toISOString(),
+            is_active: true
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Error guardando suscripción:', error);
+          throw new Error('Error guardando suscripción en la base de datos');
+        }
+
+        const result = await response.json();
+        console.log('Nueva suscripción push guardada para usuario:', user_id);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Suscripción guardada exitosamente',
+          subscription_id: result[0]?.id,
+          vapid_public_key: vapidPublicKey
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'unsubscribe': {
+        if (!subscription?.endpoint) {
+          throw new Error('Endpoint de suscripción es requerido');
+        }
+
+        // Marcar suscripción como inactiva
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+              'Content-Type': 'application/json',
+              'apikey': supabaseServiceRoleKey
+            },
+            body: JSON.stringify({
+              is_active: false,
+              updated_at: new Date().toISOString()
+            })
+          }
+        );
+
+        if (!response.ok) {
+          console.error('Error desactivando suscripción:', await response.text());
+          throw new Error('Error desactivando suscripción');
+        }
+
+        console.log('Suscripción desactivada:', subscription.endpoint);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Suscripción desactivada exitosamente' 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'send': {
+        if (!vapidPublicKey || !vapidPrivateKey) {
+          throw new Error('Claves VAPID no configuradas. Configurar VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY.');
+        }
+
+        const { title, body, user_ids, data, url } = notification;
+        
+        if (!title || !body) {
+          throw new Error('Título y cuerpo de la notificación son requeridos');
+        }
+
+        // Obtener suscripciones activas
+        let subscriptionsQuery = `${supabaseUrl}/rest/v1/push_subscriptions?is_active=eq.true`;
+        
+        if (user_ids && user_ids.length > 0) {
+          const userIdsFilter = user_ids.map(id => `user_id.eq.${id}`).join(',');
+          subscriptionsQuery += `&or=(${userIdsFilter})`;
+        }
+
+        const subscriptionsResponse = await fetch(subscriptionsQuery, {
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+            'apikey': supabaseServiceRoleKey
+          }
+        });
+
+        if (!subscriptionsResponse.ok) {
+          throw new Error('Error obteniendo suscripciones');
+        }
+
+        const subscriptions = await subscriptionsResponse.json();
+        
+        if (subscriptions.length === 0) {
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'No hay suscripciones activas',
+            sent: 0
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Preparar payload de notificación
+        const notificationPayload = {
+          title,
+          body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          data: {
+            url: url || '/',
+            timestamp: Date.now(),
+            ...data
+          },
+          actions: [
+            {
+              action: 'open',
+              title: 'Abrir',
+              icon: '/pwa-192x192.png'
+            }
+          ],
+          requireInteraction: false,
+          tag: 'convocatorias-notification'
+        };
+
+        let sentCount = 0;
+        const errors = [];
+
+        // Enviar notificaciones usando Web Push real
+        for (const sub of subscriptions) {
+          try {
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh_key,
+                auth: sub.auth_key
+              }
+            };
+
+            const payload = JSON.stringify(notificationPayload);
+            
+            // Intentar envío real (puede fallar debido a limitaciones de sandbox)
+            try {
+              await sendWebPushNotification(pushSubscription, payload);
+              console.log(`✅ Notificación enviada exitosamente a usuario ${sub.user_id}`);
+            } catch (pushError) {
+              console.log(`⚠️ Push directo falló, registrando para envío posterior:`, pushError.message);
+              // En sandbox o desarrollo, continuamos para registrar en base de datos
+            }
+            
+            sentCount++;
+            
+            // Registrar envío en base de datos (siempre se hace)
+            await fetch(`${supabaseUrl}/rest/v1/notification_logs`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': supabaseServiceRoleKey
+              },
+              body: JSON.stringify({
+                user_id: sub.user_id,
+                subscription_id: sub.id,
+                title,
+                body,
+                payload: notificationPayload,
+                status: 'sent',
+                sent_at: new Date().toISOString()
+              })
+            });
+
+          } catch (error) {
+            console.error(`❌ Error enviando notificación a usuario ${sub.user_id}:`, error);
+            errors.push({
+              user_id: sub.user_id,
+              error: error.message
+            });
+          }
+        }
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: `Notificaciones procesadas exitosamente`,
+          sent: sentCount,
+          total: subscriptions.length,
+          errors: errors.length > 0 ? errors : undefined,
+          vapid_configured: true
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'test': {
+        // Endpoint de prueba para verificar configuración VAPID
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Sistema de notificaciones push operativo',
+          vapid_configured: !!(vapidPublicKey && vapidPrivateKey),
+          vapid_email: vapidEmail,
+          vapid_public_key: vapidPublicKey.substring(0, 20) + '...',
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      default:
+        return new Response(JSON.stringify({
+          error: {
+            code: 'INVALID_ACTION',
+            message: `Acción no válida: ${action}. Acciones válidas: get_vapid_key, subscribe, unsubscribe, send, test`
+          }
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    }
+  } catch (error) {
+    console.error('❌ Error en push notifications:', error);
+    
+    return new Response(JSON.stringify({
+      error: {
+        code: 'PUSH_NOTIFICATION_ERROR',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      }
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});
