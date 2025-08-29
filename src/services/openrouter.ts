@@ -28,14 +28,18 @@ class OpenRouterService {
   }
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY
+    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || ''
     
     if (!this.apiKey) {
-      throw new Error('VITE_OPENROUTER_API_KEY is required but not found in environment variables')
+      console.warn('VITE_OPENROUTER_API_KEY not found in environment variables')
     }
   }
 
   async makeRequest(request: OpenRouterRequest): Promise<string> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured')
+    }
+
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
