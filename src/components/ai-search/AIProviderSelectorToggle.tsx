@@ -105,8 +105,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: {
           'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
-          'Content-Type': 'application/octet-stream',
-          'Content-Encoding': 'aes128gcm'
+          'Content-Type': 'application/octet-stream'
         },
         body: payload
       });
