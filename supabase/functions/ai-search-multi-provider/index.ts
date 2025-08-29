@@ -151,6 +151,9 @@ Deno.serve(async (req) => {
                 searchResults = await executeGooglePSESearch(
                     search_query, 
                     search_parameters, 
+                )
+            }
+        }
         // Parse request body using standard req.json() method
         let requestData = {};
         
