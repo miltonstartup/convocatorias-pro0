@@ -1,429 +1,279 @@
-Deno.serve(async (req) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE, PATCH',
-    'Access-Control-Max-Age': '86400',
-    'Access-Control-Allow-Credentials': 'false'
-  };
+import { useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { 
+  Brain, 
+  Sparkles, 
+  Target, 
+  Globe,
+  Zap,
+  CheckCircle,
+  AlertTriangle,
+  Info,
+  Settings
+} from 'lucide-react'
 
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+export type AIProvider = 'openrouter' | 'gemini' | 'smart_flow' | 'google_pse_raw'
+
+interface AIProviderSelectorToggleProps {
+  selectedProvider: AIProvider
+  onProviderChange: (provider: AIProvider) => void
+  selectedModel: string
+  onModelChange: (model: string) => void
+  className?: string
+}
+
+const AI_PROVIDERS = [
+  {
+    id: 'openrouter' as AIProvider,
+    name: 'OpenRouter',
+    description: 'Múltiples modelos con validación cruzada',
+    icon: Brain,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    features: ['DeepSeek Chat v3', 'Gemini 2.0 Flash', 'Llama 3.3 70B', 'Validación cruzada'],
+    speed: 'Medio (15-25s)',
+    accuracy: 'Alta',
+    models: [
+      { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek Chat v3' },
+      { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash' },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B' }
+    ]
+  },
+  {
+    id: 'gemini' as AIProvider,
+    name: 'Gemini Directo',
+    description: 'Acceso directo a Gemini 2.5 Pro',
+    icon: Sparkles,
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    features: ['Gemini 2.5 Pro', 'Respuesta rápida', 'Alta precisión', 'Contexto extenso'],
+    speed: 'Rápido (8-15s)',
+    accuracy: 'Muy Alta',
+    models: [
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
+    ]
+  },
+  {
+    id: 'smart_flow' as AIProvider,
+    name: 'Flujo Inteligente',
+    description: 'Proceso optimizado de 2 pasos',
+    icon: Target,
+    color: 'text-green-600',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    features: ['Paso 1: Flash-Lite (lista)', 'Paso 2: Pro (análisis)', 'Máxima precisión', 'Resultados optimizados'],
+    speed: 'Lento (25-40s)',
+    accuracy: 'Máxima',
+    recommended: true,
+    models: [
+      { id: 'auto', name: 'Automático (Flash-Lite + Pro)' }
+    ]
+  },
+  {
+    id: 'google_pse_raw' as AIProvider,
+    name: 'Google PSE (Desarrollo)',
+    description: 'Resultados crudos de Google PSE para verificación',
+    icon: Globe,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    features: ['Búsqueda web real', 'Sin procesamiento IA', 'Resultados verificables', 'Modo desarrollo'],
+    speed: 'Muy Rápido (3-8s)',
+    accuracy: 'Datos Crudos',
+    development: true,
+    models: [
+      { id: 'raw', name: 'Resultados Crudos' }
+    ]
   }
+]
 
-  try {
-    const { action, subscription, notification, user_id } = await req.json();
-    
-    // Obtener variables de entorno con valores por defecto (claves VAPID reales)
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
-    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'suycv6fZ93eHyVCHesd3UwfJ4cS1OWrFwg4wC180pxM';
-    const vapidEmail = Deno.env.get('VAPID_EMAIL') || 'miltonstartup@gmail.com';
+export function AIProviderSelectorToggle({ 
+  selectedProvider, 
+  onProviderChange, 
+  selectedModel, 
+  onModelChange,
+  className 
+}: AIProviderSelectorToggleProps) {
+  const [showDetails, setShowDetails] = useState(false)
+  
+  const currentProvider = AI_PROVIDERS.find(p => p.id === selectedProvider)
+  const availableModels = currentProvider?.models || []
 
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error('Variables de entorno de Supabase no configuradas');
-    }
+  return (
+    <div className={className}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Proveedor de IA
+          </CardTitle>
+          <CardDescription>
+            Selecciona el proveedor y modelo para la búsqueda
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Selector de Proveedor */}
+          <RadioGroup value={selectedProvider} onValueChange={onProviderChange}>
+            <div className="space-y-3">
+              {AI_PROVIDERS.map((provider) => {
+                const Icon = provider.icon
+                const isSelected = selectedProvider === provider.id
+                
+                return (
+                  <div key={provider.id} className="relative">
+                    <Label
+                      htmlFor={provider.id}
+                      className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50 ${
+                        isSelected 
+                          ? `${provider.borderColor} ${provider.bgColor}` 
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <RadioGroupItem value={provider.id} id={provider.id} className="mt-1" />
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Icon className={`h-5 w-5 ${provider.color}`} />
+                          <span className="font-semibold text-gray-900">{provider.name}</span>
+                          
+                          {provider.recommended && (
+                            <Badge className="bg-gradient-to-r from-green-500 to-blue-500 text-white text-xs">
+                              ✨ Recomendado
+                            </Badge>
+                          )}
+                          
+                          {provider.development && (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300 text-xs">
+                              🛠️ Desarrollo
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-2">{provider.description}</p>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Velocidad:</span>
+                            <span className="ml-1 font-medium">{provider.speed}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Precisión:</span>
+                            <span className="ml-1 font-medium">{provider.accuracy}</span>
+                          </div>
+                        </div>
+                        
+                        {isSelected && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-medium text-gray-900">Características:</h4>
+                              <div className="grid grid-cols-1 gap-1">
+                                {provider.features.map((feature, index) => (
+                                  <div key={index} className="flex items-center gap-1 text-xs text-gray-600">
+                                    <CheckCircle className="h-3 w-3 text-green-500" />
+                                    <span>{feature}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </Label>
+                  </div>
+                )
+              })}
+            </div>
+          </RadioGroup>
 
-    // Función para convertir clave VAPID a formato JWT
-    function urlB64ToUint8Array(base64String: string) {
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding)
-        .replace(/-/g, '+')
-        .replace(/_/g, '/');
-      
-      const rawData = atob(base64);
-      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
-    }
+          {/* Selector de Modelo */}
+          {availableModels.length > 1 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Modelo Específico:</Label>
+              <RadioGroup value={selectedModel} onValueChange={onModelChange}>
+                <div className="space-y-2">
+                  {availableModels.map((model) => (
+                    <Label
+                      key={model.id}
+                      htmlFor={model.id}
+                      className="flex items-center gap-2 p-2 rounded border cursor-pointer hover:bg-gray-50"
+                    >
+                      <RadioGroupItem value={model.id} id={model.id} />
+                      <span className="text-sm">{model.name}</span>
+                    </Label>
+                  ))}
+                </div>
+              </RadioGroup>
+            </div>
+          )}
 
-    // Función para generar authorization header VAPID
-    async function generateVAPIDAuthHeader(audience: string) {
-      const header = {
-        typ: 'JWT',
-        alg: 'ES256'
-      };
-      
-      const payload = {
-        aud: audience,
-        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 horas
-        sub: `mailto:${vapidEmail}`
-      };
-      
-      const textEncoder = new TextEncoder();
-      const headerEncoded = btoa(JSON.stringify(header))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      
-      const payloadEncoded = btoa(JSON.stringify(payload))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      
-      const unsignedToken = `${headerEncoded}.${payloadEncoded}`;
-      const data = textEncoder.encode(unsignedToken);
-      
-      // Convertir clave privada VAPID
-      const privateKeyBytes = urlB64ToUint8Array(vapidPrivateKey);
-      
-      const cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        privateKeyBytes,
-        {
-          name: 'ECDSA',
-          namedCurve: 'P-256'
-        },
-        false,
-        ['sign']
-      );
-      
-      const signature = await crypto.subtle.sign(
-        {
-          name: 'ECDSA',
-          hash: 'SHA-256'
-        },
-        cryptoKey,
-        data
-      );
-      
-      const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      
-      return `${unsignedToken}.${signatureBase64}`;
-    }
+          {/* Información adicional para Google PSE */}
+          {selectedProvider === 'google_pse_raw' && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Modo Desarrollo:</strong> Esta opción devuelve resultados crudos de Google Programmable Search Engine 
+                sin procesamiento IA. Úsala para verificar que la búsqueda web esté funcionando correctamente.
+              </AlertDescription>
+            </Alert>
+          )}
 
-    // Función para enviar notificación push real
-    async function sendWebPushNotification(subscription: any, payload: string) {
-      const url = new URL(subscription.endpoint);
-      const audience = `${url.protocol}//${url.host}`;
-      
-      const vapidToken = await generateVAPIDAuthHeader(audience);
-      
-      const response = await fetch(subscription.endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
-          'Content-Type': 'application/octet-stream'
-        },
-        body: payload
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-      }
-      
-      return response;
-    }
+          {/* Información del flujo inteligente */}
+          {selectedProvider === 'smart_flow' && (
+            <Alert>
+              <Target className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Flujo Inteligente:</strong> Proceso de 2 pasos optimizado para máxima precisión.
+                Paso 1: Gemini Flash-Lite genera lista rápida. Paso 2: Gemini Pro analiza en detalle.
+              </AlertDescription>
+            </Alert>
+          )}
 
-    switch (action) {
-      case 'get_vapid_key': {
-        // Endpoint para obtener la clave pública VAPID
-        return new Response(JSON.stringify({ 
-          success: true, 
-          vapid_public_key: vapidPublicKey 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+          {/* Botón para mostrar/ocultar detalles */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDetails(!showDetails)}
+            className="w-full"
+          >
+            {showDetails ? 'Ocultar Detalles' : 'Ver Detalles Técnicos'}
+          </Button>
 
-      case 'subscribe': {
-        if (!subscription || !user_id) {
-          throw new Error('Subscription y user_id son requeridos');
-        }
-
-        // Verificar si ya existe la suscripción
-        const existingResponse = await fetch(
-          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-              'apikey': supabaseServiceRoleKey
-            }
-          }
-        );
-
-        const existing = await existingResponse.json();
-        
-        if (existing.length > 0) {
-          // Actualizar suscripción existente
-          const updateResponse = await fetch(
-            `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-                'Content-Type': 'application/json',
-                'apikey': supabaseServiceRoleKey
-              },
-              body: JSON.stringify({
-                user_id,
-                p256dh_key: subscription.keys.p256dh,
-                auth_key: subscription.keys.auth,
-                is_active: true,
-                updated_at: new Date().toISOString()
-              })
-            }
-          );
-          
-          if (!updateResponse.ok) {
-            throw new Error('Error actualizando suscripción');
-          }
-          
-          return new Response(JSON.stringify({ 
-            success: true, 
-            message: 'Suscripción actualizada exitosamente',
-            subscription_id: existing[0].id,
-            vapid_public_key: vapidPublicKey
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Crear nueva suscripción
-        const response = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-            'Content-Type': 'application/json',
-            'apikey': supabaseServiceRoleKey
-          },
-          body: JSON.stringify({
-            user_id,
-            endpoint: subscription.endpoint,
-            p256dh_key: subscription.keys.p256dh,
-            auth_key: subscription.keys.auth,
-            user_agent: req.headers.get('user-agent') || 'Unknown',
-            created_at: new Date().toISOString(),
-            is_active: true
-          })
-        });
-
-        if (!response.ok) {
-          const error = await response.text();
-          console.error('Error guardando suscripción:', error);
-          throw new Error('Error guardando suscripción en la base de datos');
-        }
-
-        const result = await response.json();
-        console.log('Nueva suscripción push guardada para usuario:', user_id);
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: 'Suscripción guardada exitosamente',
-          subscription_id: result[0]?.id,
-          vapid_public_key: vapidPublicKey
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      case 'unsubscribe': {
-        if (!subscription?.endpoint) {
-          throw new Error('Endpoint de suscripción es requerido');
-        }
-
-        // Marcar suscripción como inactiva
-        const response = await fetch(
-          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-              'Content-Type': 'application/json',
-              'apikey': supabaseServiceRoleKey
-            },
-            body: JSON.stringify({
-              is_active: false,
-              updated_at: new Date().toISOString()
-            })
-          }
-        );
-
-        if (!response.ok) {
-          console.error('Error desactivando suscripción:', await response.text());
-          throw new Error('Error desactivando suscripción');
-        }
-
-        console.log('Suscripción desactivada:', subscription.endpoint);
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: 'Suscripción desactivada exitosamente' 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      case 'send': {
-        if (!vapidPublicKey || !vapidPrivateKey) {
-          throw new Error('Claves VAPID no configuradas. Configurar VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY.');
-        }
-
-        const { title, body, user_ids, data, url } = notification;
-        
-        if (!title || !body) {
-          throw new Error('Título y cuerpo de la notificación son requeridos');
-        }
-
-        // Obtener suscripciones activas
-        let subscriptionsQuery = `${supabaseUrl}/rest/v1/push_subscriptions?is_active=eq.true`;
-        
-        if (user_ids && user_ids.length > 0) {
-          const userIdsFilter = user_ids.map(id => `user_id.eq.${id}`).join(',');
-          subscriptionsQuery += `&or=(${userIdsFilter})`;
-        }
-
-        const subscriptionsResponse = await fetch(subscriptionsQuery, {
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-            'apikey': supabaseServiceRoleKey
-          }
-        });
-
-        if (!subscriptionsResponse.ok) {
-          throw new Error('Error obteniendo suscripciones');
-        }
-
-        const subscriptions = await subscriptionsResponse.json();
-        
-        if (subscriptions.length === 0) {
-          return new Response(JSON.stringify({ 
-            success: true, 
-            message: 'No hay suscripciones activas',
-            sent: 0
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Preparar payload de notificación
-        const notificationPayload = {
-          title,
-          body,
-          icon: '/pwa-192x192.png',
-          badge: '/pwa-192x192.png',
-          data: {
-            url: url || '/',
-            timestamp: Date.now(),
-            ...data
-          },
-          actions: [
-            {
-              action: 'open',
-              title: 'Abrir',
-              icon: '/pwa-192x192.png'
-            }
-          ],
-          requireInteraction: false,
-          tag: 'convocatorias-notification'
-        };
-
-        let sentCount = 0;
-        const errors = [];
-
-        // Enviar notificaciones usando Web Push real
-        for (const sub of subscriptions) {
-          try {
-            const pushSubscription = {
-              endpoint: sub.endpoint,
-              keys: {
-                p256dh: sub.p256dh_key,
-                auth: sub.auth_key
-              }
-            };
-
-            const payload = JSON.stringify(notificationPayload);
-            
-            // Intentar envío real (puede fallar debido a limitaciones de sandbox)
-            try {
-              await sendWebPushNotification(pushSubscription, payload);
-              console.log(`✅ Notificación enviada exitosamente a usuario ${sub.user_id}`);
-            } catch (pushError) {
-              console.log(`⚠️ Push directo falló, registrando para envío posterior:`, pushError.message);
-              // En sandbox o desarrollo, continuamos para registrar en base de datos
-            }
-            
-            sentCount++;
-            
-            // Registrar envío en base de datos (siempre se hace)
-            await fetch(`${supabaseUrl}/rest/v1/notification_logs`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-                'Content-Type': 'application/json',
-                'apikey': supabaseServiceRoleKey
-              },
-              body: JSON.stringify({
-                user_id: sub.user_id,
-                subscription_id: sub.id,
-                title,
-                body,
-                payload: notificationPayload,
-                status: 'sent',
-                sent_at: new Date().toISOString()
-              })
-            });
-
-          } catch (error) {
-            console.error(`❌ Error enviando notificación a usuario ${sub.user_id}:`, error);
-            errors.push({
-              user_id: sub.user_id,
-              error: error.message
-            });
-          }
-        }
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: `Notificaciones procesadas exitosamente`,
-          sent: sentCount,
-          total: subscriptions.length,
-          errors: errors.length > 0 ? errors : undefined,
-          vapid_configured: true
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      case 'test': {
-        // Endpoint de prueba para verificar configuración VAPID
-        return new Response(JSON.stringify({
-          success: true,
-          message: 'Sistema de notificaciones push operativo',
-          vapid_configured: !!(vapidPublicKey && vapidPrivateKey),
-          vapid_email: vapidEmail,
-          vapid_public_key: vapidPublicKey.substring(0, 20) + '...',
-          timestamp: new Date().toISOString()
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      default:
-        return new Response(JSON.stringify({
-          error: {
-            code: 'INVALID_ACTION',
-            message: `Acción no válida: ${action}. Acciones válidas: get_vapid_key, subscribe, unsubscribe, send, test`
-          }
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-    }
-  } catch (error) {
-    console.error('❌ Error en push notifications:', error);
-    
-    return new Response(JSON.stringify({
-      error: {
-        code: 'PUSH_NOTIFICATION_ERROR',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      }
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-});
+          {/* Detalles técnicos */}
+          {showDetails && (
+            <div className="space-y-3 p-3 bg-gray-50 rounded-lg text-xs">
+              <div>
+                <h4 className="font-semibold mb-2">Configuración Técnica:</h4>
+                <div className="space-y-1 text-gray-600">
+                  <div>• Proveedor seleccionado: {currentProvider?.name}</div>
+                  <div>• Modelo activo: {selectedModel}</div>
+                  <div>• Tiempo estimado: {currentProvider?.speed}</div>
+                  <div>• Precisión esperada: {currentProvider?.accuracy}</div>
+                </div>
+              </div>
+              
+              {selectedProvider === 'google_pse_raw' && (
+                <div>
+                  <h4 className="font-semibold mb-2">Google PSE Config:</h4>
+                  <div className="space-y-1 text-gray-600">
+                    <div>• Search Engine ID: 87c6c106f57d44d11</div>
+                    <div>• Resultados máximos: 10</div>
+                    <div>• Idioma: Español (Chile)</div>
+                    <div>• Filtros de seguridad: Activos</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
