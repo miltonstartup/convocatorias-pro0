@@ -28,9 +28,12 @@ export class APIClient {
     try {
       const authHeaders = await this.getAuthHeaders()
       
+      // Explicitly stringify the payload to ensure a non-empty body is always sent
+      const requestBody = JSON.stringify(payload);
+
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: payload,
-        headers: authHeaders
+        body: requestBody,
+        headers: { ...authHeaders, 'Content-Type': 'application/json' }
       })
 
       if (error) {
