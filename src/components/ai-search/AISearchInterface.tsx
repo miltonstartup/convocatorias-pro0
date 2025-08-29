@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'suycv6fZ93eHyVCHesd3UwfJ4cS1OWrFwg4wC180pxM';
     const vapidEmail = Deno.env.get('VAPID_EMAIL') || 'miltonstartup@gmail.com';
 
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
       throw new Error('Variables de entorno de Supabase no configuradas');
     }
 
@@ -100,13 +100,12 @@ Deno.serve(async (req) => {
       const audience = `${url.protocol}//${url.host}`;
       
       const vapidToken = await generateVAPIDAuthHeader(audience);
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      
       const response = await fetch(subscription.endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
-          'Content-Type': 'application/octet-stream',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          'Content-Type': 'application/octet-stream'
         },
         body: payload
       });
@@ -422,83 +421,9 @@ Deno.serve(async (req) => {
         message: error.message,
         timestamp: new Date().toISOString()
       }
-        }
-        
-        // Mostrar resultados crudos en consola para verificación
-        console.log('🔍 RESULTADOS CRUDOS GOOGLE PSE:', data?.data?.raw_google_pse_results)
-        
-        // Convertir resultados crudos a formato compatible
-        const rawResults = data?.data?.raw_google_pse_results || []
-        const convertedResults = rawResults.map((result: any) => ({
-          id: result.id,
-          title: result.title,
-          description: result.description,
-          source_url: result.source_url,
-          validated_data: {
-            organization: extractOrganizationFromUrl(result.source_url),
-            category: 'Búsqueda Web',
-            status: 'crudo',
-            reliability_score: result.reliability_score,
-            tags: [searchQuery, 'google_pse']
-          },
-          google_pse_raw: true
-        }))
-        
-        // Actualizar resultados en el hook de OpenRouter para mostrar en UI
-        // Esto es temporal para desarrollo
-        setSearchResults(convertedResults)
-        
-        toast.success(`Google PSE: ${rawResults.length} resultados obtenidos`, {
-          description: 'Revisa la consola del navegador para ver los datos crudos'
-        })
-        
-      } else {
-        // Flujo normal para otros proveedores
-        switch (selectedProvider) {
-          case 'openrouter':
-            await executeOpenRouterSearch(searchQuery, searchParameters)
-            break
-          case 'gemini_direct':
-            await executeDirectSearch(searchQuery, 'gemini-1.5-pro', searchParameters)
-            break
-          case 'gemini_smart':
-            await executeSmartSearch(searchQuery, searchParameters)
-            break
-          default:
-            toast.error('Proveedor no válido seleccionado')
-        }
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
-  }
-  
-  // Función auxiliar para extraer organización de URL
-  const extractOrganizationFromUrl = (url: string): string => {
-    try {
-      const domain = new URL(url).hostname.toLowerCase()
-      
-      const organizationMap: { [key: string]: string } = {
-        'corfo.cl': 'CORFO',
-        'sercotec.cl': 'SERCOTEC', 
-        'anid.cl': 'ANID',
-        'fosis.gob.cl': 'FOSIS',
-        'minciencia.gob.cl': 'MinCiencia',
-        'economia.gob.cl': 'Ministerio de Economía',
-        'fia.cl': 'FIA',
-        'cnca.gob.cl': 'CNCA',
-        'cntv.cl': 'CNTV'
-      }
-      
-      for (const [domainPattern, org] of Object.entries(organizationMap)) {
-        if (domain.includes(domainPattern)) {
-          return org
-        }
-      }
-      
-      return 'Fuente Externa'
-    } catch (error) {
-      return 'Fuente No Identificada'
-    }
   }
 });
