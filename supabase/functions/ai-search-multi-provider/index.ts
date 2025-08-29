@@ -19,15 +19,18 @@ Deno.serve(async (req) => {
         
         // Validar que el cuerpo de la request no esté vacío
         let requestData;
+        let bodyText = '';
         try {
-            const bodyText = await req.text();
-            console.log('📥 Request body recibido:', bodyText.substring(0, 200) + '...');
+            bodyText = await req.text();
+            console.log('📥 Request body recibido (primeros 200 chars):', bodyText.substring(0, 200) + '...');
             
             if (!bodyText || bodyText.trim() === '') {
-                throw new Error('Request body vacío');
+                // If body is empty, default to an empty object to avoid JSON.parse error
+                requestData = {};
+                console.log('⚠️ Request body vacío, usando objeto vacío por defecto.');
+            } else {
+                requestData = JSON.parse(bodyText);
             }
-            
-            requestData = JSON.parse(bodyText);
         } catch (parseError) {
             console.error('❌ Error parseando request JSON:', parseError);
             throw new Error('Request JSON inválido: ' + parseError.message);
