@@ -1,353 +1,258 @@
-Deno.serve(async (req) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE, PATCH',
-    'Access-Control-Max-Age': '86400',
-    'Access-Control-Allow-Credentials': 'false'
-  };
+# 🛠️ ConvocatoriasPro - Guía de Configuración
 
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+Esta guía te ayudará a configurar ConvocatoriasPro desde cero en tu entorno local y en producción.
 
-  try {
-    const { action, subscription, notification, user_id } = await req.json();
-    
-    // Obtener variables de entorno con valores por defecto (claves VAPID reales)
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
-    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'suycv6fZ93eHyVCHesd3UwfJ4cS1OWrFwg4wC180pxM';
-    const vapidEmail = Deno.env.get('VAPID_EMAIL') || 'miltonstartup@gmail.com';
+## 📋 Requisitos Previos
 
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error('Variables de entorno de Supabase no configuradas');
-    }
+- **Node.js** 18+ y **npm** 9+
+- **Cuenta Supabase** (gratuita)
+- **Navegador moderno** con soporte PWA
+- **Cuenta OpenRouter** (para IA - opcional)
+- **Cuenta Google Cloud** (para Gemini API - opcional)
+- **Cuenta MercadoPago** (para pagos - opcional)
 
-    // Función para convertir clave VAPID a formato JWT
-    function urlB64ToUint8Array(base64String: string) {
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding)
-        .replace(/-/g, '+')
-        .replace(/_/g, '/');
-      
-      const rawData = atob(base64);
-      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
-    }
+## 🚀 Configuración Local
 
-    // Función para generar authorization header VAPID
-    async function generateVAPIDAuthHeader(audience: string) {
-      const header = {
-        typ: 'JWT',
-        alg: 'ES256'
-      };
-      
-      const payload = {
-        aud: audience,
-        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 horas
-        sub: `mailto:${vapidEmail}`
-      };
-      
-      const textEncoder = new TextEncoder();
-      const headerEncoded = btoa(JSON.stringify(header))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      
-      const payloadEncoded = btoa(JSON.stringify(payload))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      
-      const unsignedToken = `${headerEncoded}.${payloadEncoded}`;
-      const data = textEncoder.encode(unsignedToken);
-      
-      // Convertir clave privada VAPID
-      const privateKeyBytes = urlB64ToUint8Array(vapidPrivateKey);
-      
-      const cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        privateKeyBytes,
-        {
-          name: 'ECDSA',
-          namedCurve: 'P-256'
-        },
-        false,
-        ['sign']
-      );
-      
-      const signature = await crypto.subtle.sign(
-        {
-          name: 'ECDSA',
-          hash: 'SHA-256'
-        },
-        cryptoKey,
-        data
-      );
-      
-      const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      
-      return `${unsignedToken}.${signatureBase64}`;
-    }
+### 1. Clonar y Configurar Proyecto
 
-    // Función para enviar notificación push real
-    async function sendWebPushNotification(subscription: any, payload: string) {
-      const url = new URL(subscription.endpoint);
-      const audience = `${url.protocol}//${url.host}`;
-      
-      const vapidToken = await generateVAPIDAuthHeader(audience);
-      
-      const response = await fetch(subscription.endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
-          'Content-Type': 'application/octet-stream',
-          'Content-Encoding': 'aes128gcm',
-          'TTL': '86400' // 24 horas
-        },
-        body: payload
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-      }
-      
-      return response;
-    }
+```bash
+# Clonar repositorio
+git clone https://github.com/tu-usuario/convocatorias-pro.git
+cd convocatorias-pro
 
-    switch (action) {
-      case 'get_vapid_key': {
-        // Endpoint para obtener la clave pública VAPID
-        return new Response(JSON.stringify({ 
-          success: true, 
-          vapid_public_key: vapidPublicKey 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+# Instalar dependencias
+npm install
 
-      case 'subscribe': {
-        if (!subscription || !user_id) {
-          throw new Error('Subscription y user_id son requeridos');
-        }
+# Copiar archivo de configuración
+cp .env.example .env
+```
 
-        // Verificar si ya existe la suscripción
-        const existingResponse = await fetch(
-          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-              'apikey': supabaseServiceRoleKey
-            }
-          }
-        );
+### 2. Configurar Variables de Entorno Frontend
 
-        const existing = await existingResponse.json();
-        
-        if (existing.length > 0) {
-          // Actualizar suscripción existente
-          const updateResponse = await fetch(
-            `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-                'Content-Type': 'application/json',
-                'apikey': supabaseServiceRoleKey
-              },
-              body: JSON.stringify({
-                user_id,
-                p256dh_key: subscription.keys.p256dh,
-                auth_key: subscription.keys.auth,
-                is_active: true,
-                updated_at: new Date().toISOString()
-              })
-            }
-          );
-          
-          if (!updateResponse.ok) {
-            throw new Error('Error actualizando suscripción');
-          }
-          
-          return new Response(JSON.stringify({ 
-            success: true, 
-            message: 'Suscripción actualizada exitosamente',
-            subscription_id: existing[0].id,
-            vapid_public_key: vapidPublicKey
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
+Edita el archivo `.env` con tus credenciales:
 
-        // Crear nueva suscripción
-        const response = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-            'Content-Type': 'application/json',
-            'apikey': supabaseServiceRoleKey
-          },
-          body: JSON.stringify({
-            user_id,
-            endpoint: subscription.endpoint,
-            p256dh_key: subscription.keys.p256dh,
-            auth_key: subscription.keys.auth,
-            user_agent: req.headers.get('user-agent') || 'Unknown',
-            created_at: new Date().toISOString(),
-            is_active: true
-          })
-        });
+```bash
+# Supabase (Obligatorio)
+VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+VITE_SUPABASE_ANON_KEY=tu_clave_anonima_aqui
 
-        if (!response.ok) {
-          const error = await response.text();
-          console.error('Error guardando suscripción:', error);
-          throw new Error('Error guardando suscripción en la base de datos');
-        }
+# Aplicación
+VITE_APP_URL=http://localhost:5173
+```
 
-        const result = await response.json();
-        console.log('Nueva suscripción push guardada para usuario:', user_id);
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: 'Suscripción guardada exitosamente',
-          subscription_id: result[0]?.id,
-          vapid_public_key: vapidPublicKey
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+### 3. Configurar Supabase
 
-      case 'unsubscribe': {
-        if (!subscription?.endpoint) {
-          throw new Error('Endpoint de suscripción es requerido');
-        }
+#### A. Crear Proyecto Supabase
+1. Ve a [supabase.com](https://supabase.com)
+2. Crear nuevo proyecto
+3. Copiar URL y claves del proyecto
 
-        // Marcar suscripción como inactiva
-        const response = await fetch(
-          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-              'Content-Type': 'application/json',
-              'apikey': supabaseServiceRoleKey
-            },
-            body: JSON.stringify({
-              is_active: false,
-              updated_at: new Date().toISOString()
-            })
-          }
-        );
+#### B. Aplicar Migraciones de Base de Datos
+En **Supabase Dashboard → SQL Editor**, ejecutar en orden:
 
-        if (!response.ok) {
-          console.error('Error desactivando suscripción:', await response.text());
-          throw new Error('Error desactivando suscripción');
-        }
+1. `supabase/migrations/001_base_schema.sql`
+2. `supabase/migrations/002_functions_and_triggers.sql`
+3. Resto de migraciones en orden cronológico
 
-        console.log('Suscripción desactivada:', subscription.endpoint);
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: 'Suscripción desactivada exitosamente' 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+#### C. Configurar Variables de Entorno Backend
+En **Supabase Dashboard → Settings → Edge Functions**, agregar:
 
-      case 'send': {
-        if (!vapidPublicKey || !vapidPrivateKey) {
-          throw new Error('Claves VAPID no configuradas. Configurar VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY.');
-        }
+```bash
+# IA y Búsqueda
+OPENROUTER_API_KEY=tu_clave_openrouter
+GOOGLE_API_KEY=tu_clave_google_gemini
 
-        const { title, body, user_ids, data, url } = notification;
-        
-        if (!title || !body) {
-          throw new Error('Título y cuerpo de la notificación son requeridos');
-        }
+# Notificaciones
+RESEND_API_KEY=tu_clave_resend
+VAPID_PUBLIC_KEY=tu_clave_vapid_publica
+VAPID_PRIVATE_KEY=tu_clave_vapid_privada
+VAPID_EMAIL=tu_email_contacto
 
-        // Obtener suscripciones activas
-        let subscriptionsQuery = `${supabaseUrl}/rest/v1/push_subscriptions?is_active=eq.true`;
-        
-        if (user_ids && user_ids.length > 0) {
-          const userIdsFilter = user_ids.map(id => `user_id.eq.${id}`).join(',');
-          subscriptionsQuery += `&or=(${userIdsFilter})`;
-        }
+# Pagos (Opcional)
+MERCADOPAGO_ACCESS_TOKEN=tu_token_mercadopago
 
-        const subscriptionsResponse = await fetch(subscriptionsQuery, {
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-            'apikey': supabaseServiceRoleKey
-          }
-        });
+# URLs
+FRONTEND_URL=http://localhost:5173
+```
 
-        if (!subscriptionsResponse.ok) {
-          throw new Error('Error obteniendo suscripciones');
-        }
+### 4. Desplegar Edge Functions
 
-        const subscriptions = await subscriptionsResponse.json();
-        
-        if (subscriptions.length === 0) {
-          return new Response(JSON.stringify({ 
-            success: true, 
-            message: 'No hay suscripciones activas',
-            sent: 0
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
+```bash
+# Instalar Supabase CLI
+npm install -g supabase
 
-        // Preparar payload de notificación
-        const notificationPayload = {
-          title,
-          body,
-          icon: '/pwa-192x192.png',
-          badge: '/pwa-192x192.png',
-          data: {
-            url: url || '/',
-            timestamp: Date.now(),
-            ...data
-          },
-          actions: [
-            {
-              action: 'open',
-              title: 'Abrir',
-              icon: '/pwa-192x192.png'
-            }
-          ],
-          requireInteraction: false,
-          tag: 'convocatorias-notification'
-        };
+# Login y vincular proyecto
+supabase login
+supabase link --project-ref tu_project_ref
 
-        let sentCount = 0;
-        const errors = [];
+# Desplegar funciones principales
+supabase functions deploy parse-content
+supabase functions deploy validate-convocatoria
+supabase functions deploy enhance-preview
+supabase functions deploy track-suggestions
+supabase functions deploy get-recommendations
+supabase functions deploy push-notifications
+supabase functions deploy send-email-alerts
+```
 
-        // Enviar notificaciones usando Web Push real
-        for (const sub of subscriptions) {
-          try {
-            const pushSubscription = {
-              endpoint: sub.endpoint,
-              keys: {
-                p256dh: sub.p256dh_key,
-                auth: sub.auth_key
-              }
-            };
+### 5. Iniciar Desarrollo
 
-            const payload = JSON.stringify(notificationPayload);
-            
-            // Intentar envío real (puede fallar debido a limitaciones de sandbox)
-            try {
-              await sendWebPushNotification(pushSubscription, payload);
-              console.log(`✅ Notificación enviada exitosamente a usuario ${sub.user_id}`);
-            } catch (pushError) {
-              console.log(`⚠️ Push directo falló, registrando para envío posterior:`, pushError.message);
-              // En sandbox o desarrollo, continuamos para registrar en base de datos
-            }
-            
-            sentCount++;
-            
-            // Registrar envío en base de datos (siempre se hace)
-            await fetch(`${supabaseUrl}/rest/v1
+```bash
+npm run dev
+```
+
+## 🌐 Configuración de Producción
+
+### 1. Despliegue Frontend
+
+#### Opción A: Netlify (Recomendado)
+```bash
+# Build del proyecto
+npm run build
+
+# En Netlify Dashboard:
+# - New site from Git
+# - Build command: npm run build
+# - Publish directory: dist
+# - Environment variables: Copiar desde .env
+```
+
+#### Opción B: Vercel
+```bash
+npm install -g vercel
+vercel --prod
+```
+
+### 2. Configurar Servicios Externos
+
+#### A. OpenRouter (IA)
+1. Registrarse en [openrouter.ai](https://openrouter.ai)
+2. Obtener API key gratuita
+3. Configurar en variables de entorno
+
+#### B. Google Gemini (IA)
+1. Crear proyecto en [Google Cloud Console](https://console.cloud.google.com)
+2. Habilitar Generative AI API
+3. Crear API key
+4. Configurar en variables de entorno
+
+#### C. Resend (Emails)
+1. Registrarse en [resend.com](https://resend.com)
+2. Verificar dominio de envío
+3. Obtener API key
+4. Configurar en variables de entorno
+
+#### D. MercadoPago (Pagos)
+1. Crear cuenta en [mercadopago.cl](https://mercadopago.cl)
+2. Obtener credenciales de producción
+3. Crear enlaces de suscripción
+4. Configurar webhook: `https://tu-proyecto.supabase.co/functions/v1/mp-webhook`
+
+### 3. Configurar PWA
+
+#### A. Generar Claves VAPID
+```bash
+# Usar herramienta online o generar con Node.js
+npx web-push generate-vapid-keys
+```
+
+#### B. Configurar Notificaciones Push
+1. Agregar claves VAPID a variables de entorno
+2. Configurar dominio en service worker
+3. Probar notificaciones en desarrollo
+
+## 🔧 Configuraciones Avanzadas
+
+### 1. Google Calendar Integration
+
+```bash
+# Variables adicionales para Google Calendar
+GOOGLE_CLIENT_ID=tu_client_id_oauth
+GOOGLE_CLIENT_SECRET=tu_client_secret_oauth
+```
+
+### 2. Analytics y Monitoreo
+
+```bash
+# Configuración opcional para analytics
+ENABLE_SOURCE_VALIDATION=true
+VALIDATION_MAX_CONCURRENT=3
+VALIDATION_TIMEOUT_SECONDS=10
+```
+
+### 3. Configuración de Seguridad
+
+```bash
+# Configuración de CORS y seguridad
+ALLOWED_ORIGINS=https://tu-dominio.com,http://localhost:5173
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=3600
+```
+
+## 🧪 Testing y Validación
+
+### 1. Tests Locales
+```bash
+# Tests unitarios
+npm run test
+
+# Tests E2E
+npm run test:e2e
+
+# Cobertura
+npm run test:coverage
+```
+
+### 2. Validar Configuración
+```bash
+# Verificar variables de entorno
+npm run check:env
+
+# Probar Edge Functions
+npm run test:functions
+
+# Validar PWA
+npm run test:pwa
+```
+
+## 🆘 Solución de Problemas
+
+### Error: "Missing environment variables"
+- Verificar que todas las variables estén configuradas
+- Comprobar sintaxis en archivos .env
+- Reiniciar servidor de desarrollo
+
+### Error: "Edge Function not found"
+- Verificar que las funciones estén desplegadas
+- Comprobar nombres de funciones en código
+- Revisar logs en Supabase Dashboard
+
+### Error: "PWA not installing"
+- Verificar que el sitio use HTTPS
+- Comprobar manifest.json válido
+- Revisar service worker registrado
+
+### Error: "Notifications not working"
+- Verificar permisos del navegador
+- Comprobar claves VAPID configuradas
+- Revisar logs de push notifications
+
+## 📚 Recursos Adicionales
+
+- **[Documentación Supabase](https://supabase.com/docs)**
+- **[Guía PWA](https://web.dev/progressive-web-apps/)**
+- **[OpenRouter API](https://openrouter.ai/docs)**
+- **[Google Gemini API](https://ai.google.dev/docs)**
+- **[MercadoPago API](https://www.mercadopago.cl/developers)**
+
+## 🤝 Soporte
+
+Si necesitas ayuda:
+1. Revisar esta documentación
+2. Consultar logs en Supabase Dashboard
+3. Crear issue en GitHub
+4. Contactar soporte: soporte@convocatoriaspro.cl
+
+---
+
+**¡Tu aplicación ConvocatoriasPro estará lista para usar!** 🎉
