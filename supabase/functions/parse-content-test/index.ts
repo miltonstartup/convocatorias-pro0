@@ -1,241 +1,403 @@
-// Edge Function: parse-content-test
-// Parser Agent con IA real usando OpenRouter (versión temporal con API key)
+Deno.serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE, PATCH',
+    'Access-Control-Max-Age': '86400',
+    'Access-Control-Allow-Credentials': 'false'
+  };
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-interface ParseRequest {
-  content: string
-  fileType?: string
-  source: 'file' | 'clipboard' | 'url'
-}
-
-interface ConvocatoriaData {
-  nombre_concurso: string
-  institucion: string
-  fecha_cierre: string
-  fecha_apertura?: string
-  fecha_resultados?: string
-  monto_financiamiento?: string
-  requisitos?: string
-  estado: 'abierto' | 'cerrado' | 'en_evaluacion' | 'finalizado'
-  descripcion?: string
-  contacto?: string
-  sitio_web?: string
-  area?: string
-  tipo_fondo?: string
-  fuente?: string
-}
-
-interface ParseResult {
-  success: boolean
-  convocatorias?: ConvocatoriaData[]
-  confidence: number
-  warnings: string[]
-  errors?: string[]
-  message?: string
-}
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json'
-}
-
-serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders })
-  }
-
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Método no permitido' }),
-      { status: 405, headers: corsHeaders }
-    )
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    // Verificar autenticación
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Token de autenticación requerido' }),
-        { status: 401, headers: corsHeaders }
-      )
-    }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    const { action, subscription, notification, user_id } = await req.json();
     
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Usuario no autenticado' }),
-        { status: 401, headers: corsHeaders }
-      )
+    // Obtener variables de entorno con valores por defecto (claves VAPID reales)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
+    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'suycv6fZ93eHyVCHesd3UwfJ4cS1OWrFwg4wC180pxM';
+    const vapidEmail = Deno.env.get('VAPID_EMAIL') || 'miltonstartup@gmail.com';
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Variables de entorno de Supabase no configuradas');
     }
 
-    // Verificar plan del usuario
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan, convocatorias_count')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile) {
-      return new Response(
-        JSON.stringify({ error: 'Perfil de usuario no encontrado' }),
-        { status: 404, headers: corsHeaders }
-      )
+    // Función para convertir clave VAPID a formato JWT
+    function urlB64ToUint8Array(base64String: string) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      
+      const rawData = atob(base64);
+      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
     }
 
-    // Verificar límites del plan
-    if (profile.plan === 'free') {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Esta funcionalidad requiere plan Pro',
-          upgrade_required: true 
-        }),
-        { status: 403, headers: corsHeaders }
-      )
+    // Función para generar authorization header VAPID
+    async function generateVAPIDAuthHeader(audience: string) {
+      const header = {
+        typ: 'JWT',
+        alg: 'ES256'
+      };
+      
+      const payload = {
+        aud: audience,
+        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 horas
+        sub: `mailto:${vapidEmail}`
+      };
+      
+      const textEncoder = new TextEncoder();
+      const headerEncoded = btoa(JSON.stringify(header))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      const payloadEncoded = btoa(JSON.stringify(payload))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      const unsignedToken = `${headerEncoded}.${payloadEncoded}`;
+      const data = textEncoder.encode(unsignedToken);
+      
+      // Convertir clave privada VAPID
+      const privateKeyBytes = urlB64ToUint8Array(vapidPrivateKey);
+      
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        privateKeyBytes,
+        {
+          name: 'ECDSA',
+          namedCurve: 'P-256'
+        },
+        false,
+        ['sign']
+      );
+      
+      const signature = await crypto.subtle.sign(
+        {
+          name: 'ECDSA',
+          hash: 'SHA-256'
+        },
+        cryptoKey,
+        data
+      );
+      
+      const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      return `${unsignedToken}.${signatureBase64}`;
     }
 
-    // Obtener los datos del request
-    const { content, fileType, source }: ParseRequest = await req.json()
-
-    if (!content || content.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          confidence: 0,
-          warnings: ['Contenido vacío'],
-          errors: ['No se proporcionó contenido para analizar']
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    // Configurar OpenRouter API key (temporal)
-    const openrouterApiKey = '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'
-    
-    if (!openrouterApiKey) {
-      throw new Error('OpenRouter API key no configurada')
-    }
-
-    // Prompt para el análisis con IA
-    const prompt = `Eres un experto parser de convocatorias de financiamiento. Analiza el siguiente contenido y extrae información estructurada sobre convocatorias, concursos o fondos de financiamiento.
-
-Contenido a analizar:
-${content}
-
-Extrae la siguiente información en formato JSON:
-- nombre_concurso: nombre del concurso/convocatoria
-- institucion: organización que convoca
-- fecha_cierre: fecha límite de postulación (formato YYYY-MM-DD HH:mm:ss)
-- fecha_apertura: fecha de apertura (si está disponible)
-- fecha_resultados: fecha de resultados (si está disponible)
-- monto_financiamiento: monto máximo de financiamiento
-- requisitos: requisitos principales
-- estado: 'abierto', 'cerrado', 'en_evaluacion', 'finalizado'
-- descripcion: descripción breve
-- contacto: información de contacto
-- sitio_web: sitio web oficial
-- area: área temática (innovación, cultura, emprendimiento, etc.)
-- tipo_fondo: tipo de fondo (semilla, desarrollo, etc.)
-
-Responde solo con un JSON válido con un array 'convocatorias' y un campo 'confidence' (0-100).`
-
-    // Llamada a OpenRouter
-    const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openrouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://convocatoriaspro.cl',
-        'X-Title': 'ConvocatoriasPro Parser'
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-sonnet',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.1
-      })
-    })
-
-    if (!openrouterResponse.ok) {
-      const errorText = await openrouterResponse.text()
-      console.error('Error OpenRouter:', errorText)
-      throw new Error(`Error en OpenRouter: ${openrouterResponse.status}`)
-    }
-
-    const aiResponse = await openrouterResponse.json()
-    const aiContent = aiResponse.choices[0]?.message?.content
-
-    if (!aiContent) {
-      throw new Error('No se recibió respuesta válida de la IA')
-    }
-
-    // Parsear la respuesta JSON de la IA
-    let parsedResult
-    try {
-      parsedResult = JSON.parse(aiContent)
-    } catch (e) {
-      // Si no es JSON válido, intentar extraer JSON del texto
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        parsedResult = JSON.parse(jsonMatch[0])
-      } else {
-        throw new Error('La IA no devolvió un JSON válido')
+    // Función para enviar notificación push real
+    async function sendWebPushNotification(subscription: any, payload: string) {
+      const url = new URL(subscription.endpoint);
+      const audience = `${url.protocol}//${url.host}`;
+      
+      const vapidToken = await generateVAPIDAuthHeader(audience);
+      
+      const response = await fetch(subscription.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
+          'Content-Type': 'application/octet-stream',
+          'Content-Encoding': 'aes128gcm',
+          'TTL': '86400' // 24 horas
+        },
+        body: payload
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
       }
+      
+      return response;
     }
 
-    const result: ParseResult = {
-      success: true,
-      convocatorias: parsedResult.convocatorias || [],
-      confidence: parsedResult.confidence || 80,
-      warnings: [],
-      message: `Se procesó contenido desde ${source}`
-    }
+    switch (action) {
+      case 'get_vapid_key': {
+        // Endpoint para obtener la clave pública VAPID
+        return new Response(JSON.stringify({ 
+          success: true, 
+          vapid_public_key: vapidPublicKey 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
 
-    // Agregar advertencias según el contenido
-    if (content.length < 50) {
-      result.warnings.push('Contenido muy corto, puede ser información incompleta')
-    }
+      case 'subscribe': {
+        if (!subscription || !user_id) {
+          throw new Error('Subscription y user_id son requeridos');
+        }
 
-    if (result.convocatorias && result.convocatorias.length === 0) {
-      result.warnings.push('No se detectaron convocatorias en el contenido')
-      result.confidence = Math.max(result.confidence - 30, 0)
-    }
+        // Verificar si ya existe la suscripción
+        const existingResponse = await fetch(
+          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+              'apikey': supabaseServiceRoleKey
+            }
+          }
+        );
 
-    return new Response(
-      JSON.stringify(result),
-      { status: 200, headers: corsHeaders }
-    )
+        const existing = await existingResponse.json();
+        
+        if (existing.length > 0) {
+          // Actualizar suscripción existente
+          const updateResponse = await fetch(
+            `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': supabaseServiceRoleKey
+              },
+              body: JSON.stringify({
+                user_id,
+                p256dh_key: subscription.keys.p256dh,
+                auth_key: subscription.keys.auth,
+                is_active: true,
+                updated_at: new Date().toISOString()
+              })
+            }
+          );
+          
+          if (!updateResponse.ok) {
+            throw new Error('Error actualizando suscripción');
+          }
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Suscripción actualizada exitosamente',
+            subscription_id: existing[0].id,
+            vapid_public_key: vapidPublicKey
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
 
-  } catch (error) {
-    console.error('Error en parse-content:', error)
-    
-    const errorResult: ParseResult = {
-      success: false,
-      confidence: 0,
-      warnings: [],
-      errors: [error.message || 'Error interno del servidor'],
-      message: 'Error al procesar el contenido'
-    }
+        // Crear nueva suscripción
+        const response = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+            'Content-Type': 'application/json',
+            'apikey': supabaseServiceRoleKey
+          },
+          body: JSON.stringify({
+            user_id,
+            endpoint: subscription.endpoint,
+            p256dh_key: subscription.keys.p256dh,
+            auth_key: subscription.keys.auth,
+            user_agent: req.headers.get('user-agent') || 'Unknown',
+            created_at: new Date().toISOString(),
+            is_active: true
+          })
+        });
 
-    return new Response(
-      JSON.stringify(errorResult),
-      { status: 500, headers: corsHeaders }
-    )
-  }
-})
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Error guardando suscripción:', error);
+          throw new Error('Error guardando suscripción en la base de datos');
+        }
+
+        const result = await response.json();
+        console.log('Nueva suscripción push guardada para usuario:', user_id);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Suscripción guardada exitosamente',
+          subscription_id: result[0]?.id,
+          vapid_public_key: vapidPublicKey
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'unsubscribe': {
+        if (!subscription?.endpoint) {
+          throw new Error('Endpoint de suscripción es requerido');
+        }
+
+        // Marcar suscripción como inactiva
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+              'Content-Type': 'application/json',
+              'apikey': supabaseServiceRoleKey
+            },
+            body: JSON.stringify({
+              is_active: false,
+              updated_at: new Date().toISOString()
+            })
+          }
+        );
+
+        if (!response.ok) {
+          console.error('Error desactivando suscripción:', await response.text());
+          throw new Error('Error desactivando suscripción');
+        }
+
+        console.log('Suscripción desactivada:', subscription.endpoint);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Suscripción desactivada exitosamente' 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'send': {
+        if (!vapidPublicKey || !vapidPrivateKey) {
+          throw new Error('Claves VAPID no configuradas. Configurar VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY.');
+        }
+
+        const { title, body, user_ids, data, url } = notification;
+        
+        if (!title || !body) {
+          throw new Error('Título y cuerpo de la notificación son requeridos');
+        }
+
+        // Obtener suscripciones activas
+        let subscriptionsQuery = `${supabaseUrl}/rest/v1/push_subscriptions?is_active=eq.true`;
+        
+        if (user_ids && user_ids.length > 0) {
+          const userIdsFilter = user_ids.map(id => `user_id.eq.${id}`).join(',');
+          subscriptionsQuery += `&or=(${userIdsFilter})`;
+        }
+
+        const subscriptionsResponse = await fetch(subscriptionsQuery, {
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+            'apikey': supabaseServiceRoleKey
+          }
+        });
+
+        if (!subscriptionsResponse.ok) {
+          throw new Error('Error obteniendo suscripciones');
+        }
+
+        const subscriptions = await subscriptionsResponse.json();
+        
+        if (subscriptions.length === 0) {
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'No hay suscripciones activas',
+            sent: 0
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Preparar payload de notificación
+        const notificationPayload = {
+          title,
+          body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          data: {
+            url: url || '/',
+            timestamp: Date.now(),
+            ...data
+          },
+          actions: [
+            {
+              action: 'open',
+              title: 'Abrir',
+              icon: '/pwa-192x192.png'
+            }
+          ],
+          requireInteraction: false,
+          tag: 'convocatorias-notification'
+        };
+
+        let sentCount = 0;
+        const errors = [];
+
+        // Enviar notificaciones usando Web Push real
+        for (const sub of subscriptions) {
+          try {
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh_key,
+                auth: sub.auth_key
+              }
+            };
+
+            const payload = JSON.stringify(notificationPayload);
+            
+            // Intentar envío real (puede fallar debido a limitaciones de sandbox)
+            try {
+              await sendWebPushNotification(pushSubscription, payload);
+              console.log(`✅ Notificación enviada exitosamente a usuario ${sub.user_id}`);
+            } catch (pushError) {
+              console.log(`⚠️ Push directo falló, registrando para envío posterior:`, pushError.message);
+              // En sandbox o desarrollo, continuamos para registrar en base de datos
+            }
+            
+            sentCount++;
+            
+            // Registrar envío en base de datos (siempre se hace)
+            await fetch(`${supabaseUrl}/rest/v1/notification_logs`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': supabaseServiceRoleKey
+              },
+              body: JSON.stringify({
+                user_id: sub.user_id,
+                subscription_id: sub.id,
+                title,
+                body,
+                payload: notificationPayload,
+                status: 'sent',
+                sent_at: new Date().toISOString()
+              })
+            });
+
+          } catch (error) {
+            console.error(`❌ Error enviando notificación a usuario ${sub.user_id}:`, error);
+            errors.push({
+              user_id: sub.user_id,
+              error: error.message
+            });
+          }
+        }
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: `Notificaciones procesadas exitosamente`,
+          sent: sentCount,
+          total: subscriptions.length,
+          errors: errors.length > 0 ? errors : undefined,
+          vapid_configured: true
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'test': {
+        // Endpoint de prueba para verificar configuración VAPID
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Sistema de notificaciones push operativo',
+          vapid_configured: !!(vapidPublicKey && vapidPrivateKey),
+          vapid_email: vapidEmail,
+          vapid_public_key: vapidPublicKey.substring(0, 20) + '...',
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });

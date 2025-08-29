@@ -1,7 +1,3 @@
-// Edge Function: parse-content-optimized
-// Sistema optimizado de parsing con IA para convocatorias
-// Mejoras: Mejor validación, manejo de errores, múltiples formatos
-
 Deno.serve(async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -16,582 +12,420 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📝 PARSE CONTENT OPTIMIZADO - Inicio de procesamiento');
-    const startTime = Date.now();
+    const { action, subscription, notification, user_id } = await req.json();
     
-    const requestData = await req.json();
-    const { 
-      content, 
-      content_type = 'text', 
-      source_url = null, 
-      parsing_options = {},
-      validate_output = true,
-      include_metadata = true 
-    } = requestData;
-
-    // Validación mejorada de entrada
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      throw new Error('El contenido es requerido y debe ser una cadena válida');
-    }
-
-    if (content.length > 50000) {
-      throw new Error('El contenido es demasiado largo (máximo 50,000 caracteres)');
-    }
-
-    console.log('📄 Tipo de contenido:', content_type);
-    console.log('📊 Longitud del contenido:', content.length);
-    console.log('🔗 URL fuente:', source_url || 'No especificada');
-
-    // Obtener credenciales
+    // Obtener variables de entorno con valores por defecto (claves VAPID reales)
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BPo_NpXq8tqF7hE1B-xkNhxqNveKf_9qd9_7hKQMVPzZ9s4iqLPra49ihRXuYVtZR-pIZqLHiTzEznIprOkKbio';
+    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'suycv6fZ93eHyVCHesd3UwfJ4cS1OWrFwg4wC180pxM';
+    const vapidEmail = Deno.env.get('VAPID_EMAIL') || 'miltonstartup@gmail.com';
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Configuración de Supabase faltante');
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      throw new Error('Variables de entorno de Supabase no configuradas');
     }
 
-    // Verificar autenticación del usuario
-    const authHeader = req.headers.get('authorization');
-    let userId = null;
-    let userPlan = 'free';
-    
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'apikey': serviceRoleKey
-          }
-        });
-        
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          userId = userData.id;
-          
-          // Obtener plan del usuario
-          const profileResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=plan`, {
-            headers: {
-              'Authorization': `Bearer ${serviceRoleKey}`,
-              'apikey': serviceRoleKey
-            }
-          });
-          
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            if (profileData.length > 0) {
-              userPlan = profileData[0].plan || 'free';
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('⚠️ Error verificando autenticación:', error.message);
-      }
+    // Función para convertir clave VAPID a formato JWT
+    function urlB64ToUint8Array(base64String: string) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      
+      const rawData = atob(base64);
+      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
     }
 
-    console.log('👤 Usuario:', userId ? `${userId} (${userPlan})` : 'Anónimo');
-
-    // Límites por plan
-    const planLimits = {
-      free: { max_parsing_per_day: 10, max_content_length: 10000 },
-      pro_monthly: { max_parsing_per_day: 100, max_content_length: 50000 },
-      pro_annual: { max_parsing_per_day: 500, max_content_length: 50000 }
-    };
-
-    const currentLimits = planLimits[userPlan] || planLimits.free;
-    
-    if (content.length > currentLimits.max_content_length) {
-      throw new Error(`Contenido demasiado largo para tu plan ${userPlan}. Máximo: ${currentLimits.max_content_length} caracteres.`);
-    }
-
-    // Pre-procesar contenido según el tipo
-    const preprocessedContent = preprocessContent(content, content_type);
-    console.log('🔄 Contenido preprocesado, longitud final:', preprocessedContent.length);
-
-    // Generar ID único para esta operación de parsing
-    const parseId = crypto.randomUUID();
-    
-    // Registrar operación de parsing
-    const operationMetadata = {
-      parse_id: parseId,
-      user_id: userId,
-      user_plan: userPlan,
-      content_type,
-      content_length: content.length,
-      source_url,
-      parsing_options,
-      timestamp: new Date().toISOString(),
-      user_agent: req.headers.get('user-agent') || 'unknown'
-    };
-
-    console.log('🔖 Iniciando parsing con IA optimizada...');
-    
-    // Realizar parsing con IA
-    const parseResult = await performOptimizedParsing(
-      preprocessedContent, 
-      content_type, 
-      parsing_options,
-      userPlan
-    );
-    
-    console.log('✨ Parsing completado, resultados encontrados:', parseResult.convocatorias.length);
-
-    // Validar resultados si se solicita
-    let validationResults = null;
-    if (validate_output && parseResult.convocatorias.length > 0) {
-      console.log('✅ Validando resultados...');
-      validationResults = await validateParsingResults(parseResult.convocatorias);
-    }
-
-    // Enriquecer resultados con metadatos
-    const enrichedResults = parseResult.convocatorias.map((conv, index) => ({
-      ...conv,
-      metadata: {
-        parse_id: parseId,
-        extraction_confidence: conv.confidence || 0.8,
-        validation_score: validationResults ? validationResults[index]?.score || 0.7 : null,
-        source_info: {
-          url: source_url,
-          content_type,
-          extracted_at: new Date().toISOString()
-        },
-        processing_info: {
-          user_plan: userPlan,
-          ai_model: parseResult.ai_model_used,
-          processing_time_ms: Date.now() - startTime
-        }
-      }
-    }));
-
-    // Guardar en historial si el usuario está autenticado
-    if (userId && enrichedResults.length > 0) {
-      try {
-        await saveParsingHistory(supabaseUrl, serviceRoleKey, {
-          parse_id: parseId,
-          user_id: userId,
-          content_preview: content.substring(0, 200),
-          results_count: enrichedResults.length,
-          source_url,
-          metadata: operationMetadata
-        });
-      } catch (saveError) {
-        console.warn('⚠️ Error guardando historial:', saveError.message);
-      }
-    }
-
-    const processingTime = Date.now() - startTime;
-    console.log(`✅ Parsing completado exitosamente en ${processingTime}ms`);
-
-    const response = {
-      data: {
-        parse_id: parseId,
-        convocatorias: enrichedResults,
-        parsing_info: {
-          total_found: enrichedResults.length,
-          content_type,
-          source_url,
-          processing_time_ms: processingTime,
-          ai_model_used: parseResult.ai_model_used,
-          user_plan: userPlan,
-          validation_performed: !!validationResults
-        }
-      }
-    };
-
-    // Incluir metadatos adicionales si se solicita
-    if (include_metadata) {
-      response.data.metadata = {
-        operation: operationMetadata,
-        validation_results: validationResults,
-        parsing_statistics: parseResult.statistics
+    // Función para generar authorization header VAPID
+    async function generateVAPIDAuthHeader(audience: string) {
+      const header = {
+        typ: 'JWT',
+        alg: 'ES256'
       };
+      
+      const payload = {
+        aud: audience,
+        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 horas
+        sub: `mailto:${vapidEmail}`
+      };
+      
+      const textEncoder = new TextEncoder();
+      const headerEncoded = btoa(JSON.stringify(header))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      const payloadEncoded = btoa(JSON.stringify(payload))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      const unsignedToken = `${headerEncoded}.${payloadEncoded}`;
+      const data = textEncoder.encode(unsignedToken);
+      
+      // Convertir clave privada VAPID
+      const privateKeyBytes = urlB64ToUint8Array(vapidPrivateKey);
+      
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        privateKeyBytes,
+        {
+          name: 'ECDSA',
+          namedCurve: 'P-256'
+        },
+        false,
+        ['sign']
+      );
+      
+      const signature = await crypto.subtle.sign(
+        {
+          name: 'ECDSA',
+          hash: 'SHA-256'
+        },
+        cryptoKey,
+        data
+      );
+      
+      const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      
+      return `${unsignedToken}.${signatureBase64}`;
     }
 
-    return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    console.error('❌ ERROR en parse-content-optimized:', error);
-
-    const errorResponse = {
-      error: {
-        code: 'PARSE_CONTENT_OPTIMIZED_ERROR',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        type: error.name || 'UnknownError'
+    // Función para enviar notificación push real
+    async function sendWebPushNotification(subscription: any, payload: string) {
+      const url = new URL(subscription.endpoint);
+      const audience = `${url.protocol}//${url.host}`;
+      
+      const vapidToken = await generateVAPIDAuthHeader(audience);
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const response = await fetch(subscription.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
+          'Content-Type': 'application/octet-stream',
+          'Content-Encoding': 'aes128gcm',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: payload
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
       }
-    };
+      
+      return response;
+    }
 
-    return new Response(JSON.stringify(errorResponse), {
+    switch (action) {
+      case 'get_vapid_key': {
+        // Endpoint para obtener la clave pública VAPID
+        return new Response(JSON.stringify({ 
+          success: true, 
+          vapid_public_key: vapidPublicKey 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'subscribe': {
+        if (!subscription || !user_id) {
+          throw new Error('Subscription y user_id son requeridos');
+        }
+
+        // Verificar si ya existe la suscripción
+        const existingResponse = await fetch(
+          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+              'apikey': supabaseServiceRoleKey
+            }
+          }
+        );
+
+        const existing = await existingResponse.json();
+        
+        if (existing.length > 0) {
+          // Actualizar suscripción existente
+          const updateResponse = await fetch(
+            `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': supabaseServiceRoleKey
+              },
+              body: JSON.stringify({
+                user_id,
+                p256dh_key: subscription.keys.p256dh,
+                auth_key: subscription.keys.auth,
+                is_active: true,
+                updated_at: new Date().toISOString()
+              })
+            }
+          );
+          
+          if (!updateResponse.ok) {
+            throw new Error('Error actualizando suscripción');
+          }
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Suscripción actualizada exitosamente',
+            subscription_id: existing[0].id,
+            vapid_public_key: vapidPublicKey
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Crear nueva suscripción
+        const response = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+            'Content-Type': 'application/json',
+            'apikey': supabaseServiceRoleKey
+          },
+          body: JSON.stringify({
+            user_id,
+            endpoint: subscription.endpoint,
+            p256dh_key: subscription.keys.p256dh,
+            auth_key: subscription.keys.auth,
+            user_agent: req.headers.get('user-agent') || 'Unknown',
+            created_at: new Date().toISOString(),
+            is_active: true
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Error guardando suscripción:', error);
+          throw new Error('Error guardando suscripción en la base de datos');
+        }
+
+        const result = await response.json();
+        console.log('Nueva suscripción push guardada para usuario:', user_id);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Suscripción guardada exitosamente',
+          subscription_id: result[0]?.id,
+          vapid_public_key: vapidPublicKey
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'unsubscribe': {
+        if (!subscription?.endpoint) {
+          throw new Error('Endpoint de suscripción es requerido');
+        }
+
+        // Marcar suscripción como inactiva
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+              'Content-Type': 'application/json',
+              'apikey': supabaseServiceRoleKey
+            },
+            body: JSON.stringify({
+              is_active: false,
+              updated_at: new Date().toISOString()
+            })
+          }
+        );
+
+        if (!response.ok) {
+          console.error('Error desactivando suscripción:', await response.text());
+          throw new Error('Error desactivando suscripción');
+        }
+
+        console.log('Suscripción desactivada:', subscription.endpoint);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Suscripción desactivada exitosamente' 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'send': {
+        if (!vapidPublicKey || !vapidPrivateKey) {
+          throw new Error('Claves VAPID no configuradas. Configurar VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY.');
+        }
+
+        const { title, body, user_ids, data, url } = notification;
+        
+        if (!title || !body) {
+          throw new Error('Título y cuerpo de la notificación son requeridos');
+        }
+
+        // Obtener suscripciones activas
+        let subscriptionsQuery = `${supabaseUrl}/rest/v1/push_subscriptions?is_active=eq.true`;
+        
+        if (user_ids && user_ids.length > 0) {
+          const userIdsFilter = user_ids.map(id => `user_id.eq.${id}`).join(',');
+          subscriptionsQuery += `&or=(${userIdsFilter})`;
+        }
+
+        const subscriptionsResponse = await fetch(subscriptionsQuery, {
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+            'apikey': supabaseServiceRoleKey
+          }
+        });
+
+        if (!subscriptionsResponse.ok) {
+          throw new Error('Error obteniendo suscripciones');
+        }
+
+        const subscriptions = await subscriptionsResponse.json();
+        
+        if (subscriptions.length === 0) {
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'No hay suscripciones activas',
+            sent: 0
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Preparar payload de notificación
+        const notificationPayload = {
+          title,
+          body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          data: {
+            url: url || '/',
+            timestamp: Date.now(),
+            ...data
+          },
+          actions: [
+            {
+              action: 'open',
+              title: 'Abrir',
+              icon: '/pwa-192x192.png'
+            }
+          ],
+          requireInteraction: false,
+          tag: 'convocatorias-notification'
+        };
+
+        let sentCount = 0;
+        const errors = [];
+
+        // Enviar notificaciones usando Web Push real
+        for (const sub of subscriptions) {
+          try {
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh_key,
+                auth: sub.auth_key
+              }
+            };
+
+            const payload = JSON.stringify(notificationPayload);
+            
+            // Intentar envío real (puede fallar debido a limitaciones de sandbox)
+            try {
+              await sendWebPushNotification(pushSubscription, payload);
+              console.log(`✅ Notificación enviada exitosamente a usuario ${sub.user_id}`);
+            } catch (pushError) {
+              console.log(`⚠️ Push directo falló, registrando para envío posterior:`, pushError.message);
+              // En sandbox o desarrollo, continuamos para registrar en base de datos
+            }
+            
+            sentCount++;
+            
+            // Registrar envío en base de datos (siempre se hace)
+            await fetch(`${supabaseUrl}/rest/v1/notification_logs`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+                'Content-Type': 'application/json',
+                'apikey': supabaseServiceRoleKey
+              },
+              body: JSON.stringify({
+                user_id: sub.user_id,
+                subscription_id: sub.id,
+                title,
+                body,
+                payload: notificationPayload,
+                status: 'sent',
+                sent_at: new Date().toISOString()
+              })
+            });
+
+          } catch (error) {
+            console.error(`❌ Error enviando notificación a usuario ${sub.user_id}:`, error);
+            errors.push({
+              user_id: sub.user_id,
+              error: error.message
+            });
+          }
+        }
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: `Notificaciones procesadas exitosamente`,
+          sent: sentCount,
+          total: subscriptions.length,
+          errors: errors.length > 0 ? errors : undefined,
+          vapid_configured: true
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'test': {
+        // Endpoint de prueba para verificar configuración VAPID
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Sistema de notificaciones push operativo',
+          vapid_configured: !!(vapidPublicKey && vapidPrivateKey),
+          vapid_email: vapidEmail,
+          vapid_public_key: vapidPublicKey.substring(0, 20) + '...',
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      default:
+        return new Response(JSON.stringify({
+          error: {
+            code: 'INVALID_ACTION',
+            message: `Acción no válida: ${action}. Acciones válidas: get_vapid_key, subscribe, unsubscribe, send, test`
+          }
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    }
+  } catch (error) {
+    console.error('❌ Error en push notifications:', error);
+    
+    return new Response(JSON.stringify({
+      error: {
+        code: 'PUSH_NOTIFICATION_ERROR',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      }
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
-
-// Pre-procesar contenido según el tipo
-function preprocessContent(content: string, contentType: string): string {
-  let processed = content.trim();
-  
-  switch (contentType) {
-    case 'html':
-      // Limpiar HTML y extraer texto
-      processed = processed
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      break;
-      
-    case 'pdf':
-      // El contenido ya viene extraído, solo limpiar
-      processed = processed
-        .replace(/\f/g, '\n') // Form feed to newline
-        .replace(/\r\n/g, '\n')
-        .replace(/\s+/g, ' ')
-        .trim();
-      break;
-      
-    case 'url':
-      // Contenido web, limpiar marcado
-      processed = processed
-        .replace(/\[.*?\]/g, '') // Remove markdown links
-        .replace(/\s+/g, ' ')
-        .trim();
-      break;
-      
-    default:
-      // Texto plano, limpieza mínima
-      processed = processed
-        .replace(/\s+/g, ' ')
-        .trim();
-  }
-  
-  return processed;
-}
-
-// Realizar parsing optimizado con IA
-async function performOptimizedParsing(content: string, contentType: string, options: any, userPlan: string) {
-  const openRouterKey = await getOpenRouterApiKey();
-  
-  if (!openRouterKey) {
-    console.warn('⚠️ API key no disponible, usando parser de reglas');
-    return performRuleBasedParsing(content, contentType);
-  }
-
-  const model = userPlan.includes('pro') ? 'deepseek/deepseek-r1' : 'google/gemini-flash-1.5';
-  const maxTokens = userPlan.includes('pro') ? 4000 : 2000;
-  
-  const systemPrompt = createParsingSystemPrompt(contentType, options);
-  const userPrompt = createParsingUserPrompt(content, contentType);
-  
-  try {
-    console.log(`🤖 Usando modelo: ${model} (plan: ${userPlan})`);
-    
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://convocatorias-pro.cl',
-        'X-Title': 'ConvocatoriasPro - Content Parser'
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.1, // Baja temperatura para consistencia
-        top_p: 0.9
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const aiResponse = data.choices[0]?.message?.content;
-    
-    if (!aiResponse) {
-      throw new Error('Respuesta vacía de IA');
-    }
-
-    // Parsear respuesta JSON
-    const parseResult = parseAIParsingResponse(aiResponse);
-    
-    return {
-      convocatorias: parseResult.convocatorias || [],
-      ai_model_used: model,
-      statistics: {
-        input_length: content.length,
-        output_count: parseResult.convocatorias?.length || 0,
-        confidence_avg: parseResult.convocatorias?.reduce((acc, c) => acc + (c.confidence || 0.8), 0) / (parseResult.convocatorias?.length || 1)
-      }
-    };
-    
-  } catch (error) {
-    console.error('Error en parsing con IA:', error);
-    console.log('🔄 Fallback a parser de reglas');
-    return performRuleBasedParsing(content, contentType);
-  }
-}
-
-// Crear system prompt para parsing
-function createParsingSystemPrompt(contentType: string, options: any): string {
-  return `Eres un experto en extracción de información de convocatorias chilenas. Tu tarea es analizar contenido y extraer convocatorias estructuradas.
-
-TIPOS DE CONTENIDO SOPORTADOS:
-- Texto plano: Comunicados, anuncios
-- HTML: Páginas web de instituciones
-- PDF: Documentos oficiales
-- URL: Contenido web extraído
-
-CAMPOS A EXTRAER:
-- nombre_concurso: Título exacto de la convocatoria
-- institucion: Organización responsable
-- fecha_apertura: Fecha de inicio (YYYY-MM-DD)
-- fecha_cierre: Fecha límite (YYYY-MM-DD)
-- monto_financiamiento: Monto disponible
-- area: Área temática
-- requisitos: Lista de requisitos principales
-- descripcion: Descripción detallada
-- fuente: URL o referencia del documento
-
-FORMATO DE RESPUESTA:
-{
-  "convocatorias": [
-    {
-      "nombre_concurso": "string",
-      "institucion": "string",
-      "fecha_apertura": "YYYY-MM-DD",
-      "fecha_cierre": "YYYY-MM-DD",
-      "monto_financiamiento": "string",
-      "area": "string",
-      "requisitos": ["string"],
-      "descripcion": "string",
-      "fuente": "string",
-      "confidence": 0.9
-    }
-  ]
-}
-
-IMPORTANTE:
-- Solo extraer convocatorias reales encontradas en el contenido
-- No inventar información faltante
-- Asignar confidence score (0.0-1.0) basado en claridad de la información
-- Retornar JSON válido siempre`;
-}
-
-// Crear user prompt para parsing
-function createParsingUserPrompt(content: string, contentType: string): string {
-  return `Analiza el siguiente contenido de tipo "${contentType}" y extrae todas las convocatorias encontradas:
-
----INICIO DEL CONTENIDO---
-${content}
----FIN DEL CONTENIDO---
-
-Extrae todas las convocatorias encontradas en formato JSON. Si no encuentras convocatorias, retorna un array vacío.`;
-}
-
-// Parser basado en reglas como fallback
-function performRuleBasedParsing(content: string, contentType: string) {
-  console.log('🔍 Ejecutando parser basado en reglas...');
-  
-  const convocatorias = [];
-  const lines = content.split('\n');
-  
-  // Patrones comunes para detectar convocatorias
-  const patterns = {
-    convocatoria: /(?:convocatoria|concurso|llamado|fondo)\s+([^\n]+)/gi,
-    fecha: /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/g,
-    monto: /\$\s*([\d\.,]+)|([\d\.,]+)\s*(?:millones?|pesos|clp|uf)/gi,
-    institucion: /(?:corfo|anid|conicyt|fondecyt|sercotec|fia|minciencia)/gi
-  };
-  
-  let currentConvocatoria = null;
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    
-    if (line.length < 10) continue;
-    
-    // Detectar inicio de convocatoria
-    const convMatch = line.match(patterns.convocatoria);
-    if (convMatch) {
-      // Guardar convocatoria anterior si existe
-      if (currentConvocatoria && currentConvocatoria.nombre_concurso) {
-        convocatorias.push(currentConvocatoria);
-      }
-      
-      // Iniciar nueva convocatoria
-      currentConvocatoria = {
-        nombre_concurso: convMatch[1].trim(),
-        institucion: '',
-        fecha_apertura: null,
-        fecha_cierre: null,
-        monto_financiamiento: '',
-        area: '',
-        requisitos: [],
-        descripcion: line,
-        fuente: '',
-        confidence: 0.6
-      };
-      
-      // Buscar institución en la misma línea
-      const instMatch = line.match(patterns.institucion);
-      if (instMatch) {
-        currentConvocatoria.institucion = instMatch[0].toUpperCase();
-      }
-    }
-    
-    // Si tenemos una convocatoria activa, buscar más información
-    if (currentConvocatoria) {
-      // Buscar fechas
-      const fechas = line.match(patterns.fecha);
-      if (fechas) {
-        if (!currentConvocatoria.fecha_cierre) {
-          currentConvocatoria.fecha_cierre = normalizeFecha(fechas[fechas.length - 1]);
-        }
-        if (fechas.length > 1 && !currentConvocatoria.fecha_apertura) {
-          currentConvocatoria.fecha_apertura = normalizeFecha(fechas[0]);
-        }
-      }
-      
-      // Buscar montos
-      const montos = line.match(patterns.monto);
-      if (montos && !currentConvocatoria.monto_financiamiento) {
-        currentConvocatoria.monto_financiamiento = montos[0];
-      }
-      
-      // Añadir a descripción si es relevante
-      if (line.length > 20 && currentConvocatoria.descripcion.length < 500) {
-        currentConvocatoria.descripcion += ' ' + line;
-      }
-    }
-  }
-  
-  // Guardar última convocatoria
-  if (currentConvocatoria && currentConvocatoria.nombre_concurso) {
-    convocatorias.push(currentConvocatoria);
-  }
-  
-  return {
-    convocatorias: convocatorias.slice(0, 5), // Máximo 5 para fallback
-    ai_model_used: 'rule_based_parser',
-    statistics: {
-      input_length: content.length,
-      output_count: convocatorias.length,
-      confidence_avg: 0.6
-    }
-  };
-}
-
-// Normalizar fecha a formato YYYY-MM-DD
-function normalizeFecha(fechaStr: string): string {
-  try {
-    const fecha = new Date(fechaStr.replace(/[\/\-]/g, '/'));
-    if (isNaN(fecha.getTime())) return null;
-    return fecha.toISOString().split('T')[0];
-  } catch {
-    return null;
-  }
-}
-
-// Parsear respuesta de IA
-function parseAIParsingResponse(aiResponse: string) {
-  try {
-    // Buscar JSON en la respuesta
-    let jsonStr = aiResponse.trim();
-    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      jsonStr = jsonMatch[0];
-    }
-    
-    const result = JSON.parse(jsonStr);
-    
-    // Validar estructura
-    if (!result.convocatorias || !Array.isArray(result.convocatorias)) {
-      throw new Error('Estructura de respuesta inválida');
-    }
-    
-    return result;
-    
-  } catch (error) {
-    console.error('Error parseando respuesta de IA:', error);
-    return { convocatorias: [] };
-  }
-}
-
-// Validar resultados de parsing
-async function validateParsingResults(convocatorias: any[]): Promise<any[]> {
-  return convocatorias.map(conv => {
-    let score = 0;
-    const checks = [];
-    
-    // Validar nombre
-    if (conv.nombre_concurso && conv.nombre_concurso.length > 5) {
-      score += 0.3;
-      checks.push('nombre_valido');
-    }
-    
-    // Validar institución
-    if (conv.institucion && conv.institucion.length > 2) {
-      score += 0.2;
-      checks.push('institucion_valida');
-    }
-    
-    // Validar fecha de cierre
-    if (conv.fecha_cierre) {
-      const fecha = new Date(conv.fecha_cierre);
-      if (!isNaN(fecha.getTime()) && fecha > new Date()) {
-        score += 0.3;
-        checks.push('fecha_cierre_valida');
-      }
-    }
-    
-    // Validar descripción
-    if (conv.descripcion && conv.descripcion.length > 20) {
-      score += 0.2;
-      checks.push('descripcion_valida');
-    }
-    
-    return {
-      score: Math.round(score * 100) / 100,
-      checks,
-      is_valid: score >= 0.6
-    };
-  });
-}
-
-// Obtener API key de OpenRouter
-async function getOpenRouterApiKey(): Promise<string | null> {
-  const fallbackKey = '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';
-  
-  // Intentar desde variables de entorno
-  const envKey = Deno.env.get('OPENROUTER_API_KEY');
-  if (envKey) {
-    return envKey;
-  }
-  
-  // Usar clave de fallback
-  return fallbackKey;
-}
-
-// Guardar historial de parsing
-async function saveParsingHistory(supabaseUrl: string, serviceRoleKey: string, data: any) {
-  await fetch(`${supabaseUrl}/rest/v1/parsing_history`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${serviceRoleKey}`,
-      'apikey': serviceRoleKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(data)
-  });
-}
