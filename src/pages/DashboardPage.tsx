@@ -1,32 +1,28 @@
-// Dashboard principal con estadísticas avanzadas y paywall dinámico
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Separator } from '@/components/ui/separator'
 import { 
   BarChart3, 
   Calendar, 
   Clock, 
   Download, 
   PlusCircle, 
-  Search, 
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   Building2,
   Crown
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useAdvancedFeatures, usePlanLimits } from '@/hooks/useAdvanced'
 import { useConvocatorias } from '@/hooks/useConvocatorias'
 import { PaywallCard, PlanLimitCard, PaywallInline } from '@/components/plans/PaywallComponents'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { format, formatDistanceToNow } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { PageLoading, DashboardStatsLoading } from '@/components/common/LoadingStates'
+import { NoConvocatorias } from '@/components/common/EmptyStates'
+import { ErrorState } from '@/components/common/ErrorStates'
+import { DateFormatter } from '@/utils/formatters'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ROUTES } from '@/lib/constants'
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -41,12 +37,7 @@ export function DashboardPage() {
   
   // Mostrar spinner si aún está cargando
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <LoadingSpinner />
-        <span className="ml-2 text-muted-foreground">Cargando dashboard...</span>
-      </div>
-    )
+    return <PageLoading message="Cargando dashboard..." />
   }
   
   // Datos seguros con valores por defecto
@@ -137,62 +128,66 @@ export function DashboardPage() {
       <PlanLimitCard />
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Convocatorias</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_convocatorias || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {usage && typeof usage.convocatorias_limit === 'number' 
-                ? `${Math.max(0, usage.convocatorias_limit - (stats?.total_convocatorias || 0))} restantes`
-                : 'Ilimitadas'
-              }
-            </p>
-          </CardContent>
-        </Card>
+      {isLoadingStats ? (
+        <DashboardStatsLoading />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Convocatorias</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.total_convocatorias || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                {usage && typeof usage.convocatorias_limit === 'number' 
+                  ? `${Math.max(0, usage.convocatorias_limit - (stats?.total_convocatorias || 0))} restantes`
+                  : 'Ilimitadas'
+                }
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Activas</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats?.active_convocatorias || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Abiertas para postulación
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Activas</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats?.active_convocatorias || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                Abiertas para postulación
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Esta Semana</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats?.deadline_this_week || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Cierran en 7 días
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Esta Semana</CardTitle>
+              <Clock className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{stats?.deadline_this_week || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                Cierran en 7 días
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Este Mes</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats?.deadline_this_month || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Cierran en 30 días
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Este Mes</CardTitle>
+              <Calendar className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{stats?.deadline_this_month || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                Cierran en 30 días
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Main Content */}
       <Tabs defaultValue="upcoming" className="space-y-6">
@@ -235,7 +230,7 @@ export function DashboardPage() {
                             {deadline.days_until} días restantes
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(deadline.deadline), 'dd MMM yyyy', { locale: es })}
+                            {DateFormatter.format(deadline.deadline, 'dd MMM yyyy')}
                           </span>
                         </div>
                       </div>
@@ -252,10 +247,7 @@ export function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No hay vencimientos próximos</p>
-                </div>
+                <NoConvocatorias onCreateNew={() => navigate(ROUTES.CONVOCATORIAS_NEW)} />
               )}
             </CardContent>
           </Card>
@@ -278,7 +270,7 @@ export function DashboardPage() {
                       <div className="flex-1">
                         <p className="text-sm font-medium">{activity.title}</p>
                         <p className="text-xs text-muted-foreground">
-                          {activity.action} • {formatDistanceToNow(new Date(activity.date), { addSuffix: true, locale: es })}
+                          {activity.action} • {DateFormatter.formatRelative(activity.date)}
                         </p>
                       </div>
                       <Button 
@@ -292,10 +284,7 @@ export function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Search className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No hay actividad reciente</p>
-                </div>
+                <NoConvocatorias onCreateNew={() => navigate(ROUTES.CONVOCATORIAS_NEW)} />
               )}
             </CardContent>
           </Card>

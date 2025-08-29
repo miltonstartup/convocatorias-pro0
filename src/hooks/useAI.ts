@@ -1,8 +1,7 @@
-// Hook para usar los agentes de IA
 import { useState } from 'react'
-import { aiService, ParseResult, ValidationResult, PreviewData, RecommendationResult } from '@/services/ai'
+import { aiService, ParseResult, ValidationResult, PreviewData, RecommendationResult } from '@/services/ai.service'
 import { useAuth } from './useAuth'
-import { usePlans } from './usePlans'
+import { plansService } from '@/services/plans.service'
 import { toast } from 'sonner'
 
 export function useAI() {
@@ -15,14 +14,17 @@ export function useAI() {
       return false
     }
 
-    // Verificar directamente si el usuario es Pro usando el hook actualizado
-    console.log('🤖 AI Access Check:', { user: !!user, isPro, userEmail: user?.email })
+    // Verificar si el usuario es Pro
+    const userPlan = user.user_metadata?.plan || profile?.plan || 'free'
+    const canUse = plansService.canAccessFeature(userPlan, 'ai_features')
     
-    if (!isPro) {
+    console.log('🤖 AI Access Check:', { user: !!user, userPlan, canUse, userEmail: user?.email })
+    
+    if (!canUse) {
       toast.error('Las funciones de IA requieren Plan Pro', {
         action: {
           label: 'Ver Planes',
-          onClick: () => window.location.href = '/plans'
+          onClick: () => window.location.href = '/app/plans'
         }
       })
       return false

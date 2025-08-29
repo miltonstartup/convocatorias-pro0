@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { authService } from '@/services/auth.service'
+import { supabase } from '@/lib/supabase' 
 import { PlanType } from '@/types'
 
 interface AuthContextType {
@@ -160,82 +161,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    return { error }
+    const result = await authService.signIn({ email, password })
+    return { error: result.error }
   }
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName || email.split('@')[0]
-        }
-      }
-    })
-    return { error }
+    const result = await authService.signUp({ email, password, fullName })
+    return { error: result.error }
   }
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    })
-    return { error }
+    const result = await authService.signInWithProvider('google')
+    return { error: result.error }
   }
 
   const signInWithGithub = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    })
-    return { error }
+    const result = await authService.signInWithProvider('github')
+    return { error: result.error }
   }
 
   const signOut = async () => {
     console.log('🚑 Signing out user')
     
-    // Solo hacer signOut - el estado se limpia automáticamente via onAuthStateChange
-    const { error } = await supabase.auth.signOut()
-    
-    if (error) {
-      console.error('Error during signOut:', error)
-    }
-    
-    return { error }
+    const result = await authService.signOut()
+    return { error: result.error }
   }
 
   const updateProfile = async (updates: any) => {
     if (!user) return { error: new Error('Usuario no autenticado') }
 
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', user.id)
-        .select()
-        .single()
-
-      if (error) {
-        return { error }
-      }
-
-      if (data) {
-        setProfile(data)
-      }
-
-      return { error: null }
-    } catch (error) {
-      return { error }
+    const result = await authService.updateProfile(updates)
+    
+    if (!result.error) {
+      // Refrescar perfil después de actualización exitosa
+      await refreshProfile()
     }
+    
+    return result
   }
 
   const refreshProfile = async () => {
